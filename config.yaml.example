@@ -1,0 +1,8 @@
+# Path to the jadx executable used for the initial full-JAR decompilation pass.
+jadx_path: /path/to/jadx
+
+# Path to the cfr executable, wrapper script, or cfr.jar used for per-class fallback retries.
+cfr_path: /path/to/cfr
+
+# Default number of concurrent CFR retry workers when --retry-concurrency is not provided.
+default_retry_concurrency: 4

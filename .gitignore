@@ -1,0 +1,33 @@
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Go build and test artifacts
+/bin/
+/dist/
+/cover.out
+/coverage.out
+*.test
+
+# Local work directories
+/tmp/
+/out/
+/.cache/
+
+# Tool runtime artifacts
+*.log
+
+# AI generated files
+AGENTS.md
+CLAUDE.md
+.opencode/
+.codex/
+openspec/
+docs/*.md
+
+# Local config
+/config.yaml
+
+# misc
+.github/

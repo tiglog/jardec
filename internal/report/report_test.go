@@ -58,10 +58,11 @@ func TestRenderTextSummarizesCoverage(t *testing.T) {
 		RetryElapsedMillis:   4,
 		Classes: []ClassResult{
 			{
-				BinaryName:   "com.example.Bad",
-				Status:       StatusFailed,
-				RetryReasons: []string{"jadx_warn"},
-				RetryOutcome: "missing_retry_output",
+				BinaryName:         "com.example.Bad",
+				Status:             StatusFailed,
+				RetryReasons:       []string{"jadx_warn"},
+				RetryOutcome:       "missing_retry_output",
+				DependencyWarnings: []string{"Could not load the following classes"},
 			},
 		},
 	}
@@ -78,10 +79,35 @@ func TestRenderTextSummarizesCoverage(t *testing.T) {
 		"Retry elapsed:",
 		"com.example.Bad",
 		"missing_retry_output",
+		"Could not load the following classes",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("RenderText() = %q, want substring %q", text, want)
 		}
+	}
+}
+
+func TestWriteJSONSerializesDependencyWarnings(t *testing.T) {
+	t.Parallel()
+
+	rep := Report{
+		Jar: "sample.jar",
+		Classes: []ClassResult{
+			{
+				BinaryName:         "com.example.Warned",
+				Status:             StatusSucceeded,
+				Origin:             OriginJADX,
+				DependencyWarnings: []string{"Could not load the following classes"},
+			},
+		},
+	}
+
+	data, err := json.Marshal(rep)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if !strings.Contains(string(data), `"dependencyWarnings":["Could not load the following classes"]`) {
+		t.Fatalf("json = %s, want dependency warnings", string(data))
 	}
 }
 

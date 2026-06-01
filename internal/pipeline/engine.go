@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"jardec/internal/decompiler"
@@ -19,6 +21,7 @@ type Config struct {
 	OutputDir        string
 	JadxPath         string
 	CfrPath          string
+	ExtraClasspath   []string
 	TempDir          string
 	KeepTemp         bool
 	RetryConcurrency int
@@ -79,9 +82,10 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 
 		if !classification.NeedsRetry {
 			classReports[class.BinaryName] = ireport.ClassResult{
-				BinaryName: class.BinaryName,
-				Status:     ireport.StatusSucceeded,
-				Origin:     ireport.OriginJADX,
+				BinaryName:         class.BinaryName,
+				Status:             ireport.StatusSucceeded,
+				Origin:             ireport.OriginJADX,
+				DependencyWarnings: collectDependencyWarnings(filepath.Join(jadxWorkspace.SourcesDir, filepath.FromSlash(class.SourcePath))),
 			}
 			continue
 		}
@@ -96,10 +100,11 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 
 	retryStartedAt := time.Now()
 	retryResults, err := ExecuteCFRRetries(ctx, e.CfrRunner, CfrRetryConfig{
-		BaseTempDir: cfg.TempDir,
-		CfrPath:     cfg.CfrPath,
-		InputJar:    cfg.InputPath,
-		Concurrency: cfg.RetryConcurrency,
+		BaseTempDir:    cfg.TempDir,
+		CfrPath:        cfg.CfrPath,
+		InputJar:       cfg.InputPath,
+		ExtraClasspath: cfg.ExtraClasspath,
+		Concurrency:    cfg.RetryConcurrency,
 	}, retryClasses)
 	retryElapsed := time.Since(retryStartedAt)
 	if err != nil {
@@ -111,8 +116,9 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 		}
 
 		classReport := ireport.ClassResult{
-			BinaryName:   result.Class.BinaryName,
-			RetryReasons: retryReasons[result.Class.BinaryName],
+			BinaryName:         result.Class.BinaryName,
+			RetryReasons:       retryReasons[result.Class.BinaryName],
+			DependencyWarnings: collectDependencyWarnings(filepath.Join(result.OutputDir, filepath.FromSlash(result.Class.SourcePath)), result.Diagnostics),
 		}
 
 		if result.Err != nil {
@@ -186,6 +192,37 @@ func mapRetryFailure(err error) string {
 	default:
 		return "retry_validation_failed"
 	}
+}
+
+const unresolvedDependencyWarning = "Could not load the following classes"
+
+func collectDependencyWarnings(sourcePath string, diagnostics ...decompiler.RunResult) []string {
+	warnings := make([]string, 0)
+	appendWarnings := func(text string) {
+		for _, line := range strings.Split(text, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || !strings.Contains(line, unresolvedDependencyWarning) {
+				continue
+			}
+			line = strings.Trim(line, "/*# \t")
+			line = strings.TrimSpace(line)
+			if !slices.Contains(warnings, line) {
+				warnings = append(warnings, line)
+			}
+		}
+	}
+
+	if sourcePath != "" {
+		if data, err := os.ReadFile(sourcePath); err == nil {
+			appendWarnings(string(data))
+		}
+	}
+	for _, diagnostic := range diagnostics {
+		appendWarnings(diagnostic.Stdout)
+		appendWarnings(diagnostic.Stderr)
+	}
+
+	return warnings
 }
 
 func copyTree(srcRoot, dstRoot string) error {

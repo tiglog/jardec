@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -19,10 +20,11 @@ var (
 )
 
 type CfrRetryConfig struct {
-	BaseTempDir string
-	CfrPath     string
-	InputJar    string
-	Concurrency int
+	BaseTempDir    string
+	CfrPath        string
+	InputJar       string
+	ExtraClasspath []string
+	Concurrency    int
 }
 
 type RetryResult struct {
@@ -91,6 +93,7 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg CfrRe
 		BinaryPath: cfg.CfrPath,
 		ClassFile:  classFile,
 		OutputDir:  outputDir,
+		Classpath:  buildRetryClasspath(cfg.InputJar, cfg.ExtraClasspath),
 	})
 
 	return RetryResult{
@@ -100,6 +103,20 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg CfrRe
 		Diagnostics: diagnostics,
 		Err:         err,
 	}
+}
+
+func buildRetryClasspath(inputJar string, extraClasspath []string) []string {
+	classpath := make([]string, 0, 1+len(extraClasspath))
+	if inputJar != "" {
+		classpath = append(classpath, inputJar)
+	}
+	for _, entry := range extraClasspath {
+		entry = strings.TrimSpace(entry)
+		if entry != "" && !slices.Contains(classpath, entry) {
+			classpath = append(classpath, entry)
+		}
+	}
+	return classpath
 }
 
 func ValidateRetryOutput(class jarpkg.Class, outputDir string) error {

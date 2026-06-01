@@ -76,6 +76,10 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 						Name:  "cfr-path",
 						Usage: "Path to the cfr executable, wrapper script, or jar file",
 					},
+					&urfavecli.StringSliceFlag{
+						Name:  "classpath",
+						Usage: "Additional dependency jars for decompilation; guaranteed to be used by CFR fallback retries (repeatable)",
+					},
 					&urfavecli.StringFlag{
 						Name:  "temp-dir",
 						Usage: "Base directory for temporary workspaces",

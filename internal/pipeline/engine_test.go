@@ -174,6 +174,99 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 	}
 }
 
+func TestEnginePassesDecompileClasspathToCFRRetries(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{
+		"com/example/Foo.class": "foo",
+	})
+
+	engine := Engine{
+		JadxRunner: &scriptedRunner{
+			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+				outputDir := spec.Args[1]
+				writePipelineFile(t, outputDir, "sources/com/example/Foo.java", "class Foo {\n// JADX WARN: fallback\n}\n")
+				return decompiler.RunResult{}, nil
+			},
+		},
+		CfrRunner: &scriptedRunner{
+			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+				if got, want := spec.Args[4], strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator)); got != want {
+					t.Fatalf("extraclasspath = %q, want %q", got, want)
+				}
+				outputDir := spec.Args[2]
+				writePipelineFile(t, outputDir, "com/example/Foo.java", "class Foo { int recovered = 1; }\n")
+				return decompiler.RunResult{}, nil
+			},
+		},
+	}
+
+	rep, err := engine.Run(context.Background(), Config{
+		InputPath:        jarPath,
+		OutputDir:        t.TempDir(),
+		JadxPath:         "/tools/jadx",
+		CfrPath:          "/tools/cfr",
+		ExtraClasspath:   []string{"/deps/base.jar", jarPath, "/deps/cli.jar"},
+		RetryConcurrency: 1,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if rep.CfrRecovered != 1 {
+		t.Fatalf("CfrRecovered = %d, want 1", rep.CfrRecovered)
+	}
+}
+
+func TestEnginePreservesDependencyWarningsSeparately(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{
+		"com/example/Foo.class": "foo",
+	})
+
+	engine := Engine{
+		JadxRunner: &scriptedRunner{
+			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+				outputDir := spec.Args[1]
+				writePipelineFile(t, outputDir, "sources/com/example/Foo.java", "class Foo {\n// JADX WARN: fallback\n}\n")
+				return decompiler.RunResult{}, nil
+			},
+		},
+		CfrRunner: &scriptedRunner{
+			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+				outputDir := spec.Args[2]
+				writePipelineFile(t, outputDir, "com/example/Foo.java", "/* Could not load the following classes */\nclass Foo {}\n")
+				return decompiler.RunResult{}, nil
+			},
+		},
+	}
+
+	rep, err := engine.Run(context.Background(), Config{
+		InputPath:        jarPath,
+		OutputDir:        t.TempDir(),
+		JadxPath:         "/tools/jadx",
+		CfrPath:          "/tools/cfr",
+		RetryConcurrency: 1,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	classRep := rep.Classes[0]
+	if classRep.Status != ireport.StatusSucceeded || classRep.Origin != ireport.OriginCFR {
+		t.Fatalf("class report = %+v, want successful CFR recovery", classRep)
+	}
+	if got := classRep.RetryReasons; len(got) != 1 || got[0] != "jadx_warn" {
+		t.Fatalf("RetryReasons = %v, want [jadx_warn]", got)
+	}
+	if got := classRep.DependencyWarnings; len(got) != 1 || got[0] != "Could not load the following classes" {
+		t.Fatalf("DependencyWarnings = %v, want unresolved class warning", got)
+	}
+	if !strings.Contains(ireport.RenderText(rep), "dependencyWarnings=Could not load the following classes") {
+		t.Fatalf("RenderText() missing dependency warning: %q", ireport.RenderText(rep))
+	}
+}
+
 type scriptedRunner struct {
 	run func(spec decompiler.CommandSpec) (decompiler.RunResult, error)
 }

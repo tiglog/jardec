@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -78,6 +79,7 @@ func TestRunCFRBuildsExpectedCommand(t *testing.T) {
 		BinaryPath: "/tools/cfr",
 		ClassFile:  filepath.Join("tmp", "Foo.class"),
 		OutputDir:  "out",
+		Classpath:  []string{"input.jar", "/deps/a.jar"},
 	})
 	if err != nil {
 		t.Fatalf("RunCFR() error = %v", err)
@@ -86,7 +88,11 @@ func TestRunCFRBuildsExpectedCommand(t *testing.T) {
 	if fake.spec.Path != "/tools/cfr" {
 		t.Fatalf("Path = %q, want /tools/cfr", fake.spec.Path)
 	}
-	want := []string{filepath.Join("tmp", "Foo.class"), "--outputdir", "out"}
+	want := []string{
+		filepath.Join("tmp", "Foo.class"),
+		"--outputdir", "out",
+		"--extraclasspath", strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
+	}
 	if !slices.Equal(fake.spec.Args, want) {
 		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
 	}
@@ -100,6 +106,7 @@ func TestRunCFRSupportsDirectJarPath(t *testing.T) {
 		BinaryPath: "/tools/cfr.jar",
 		ClassFile:  filepath.Join("tmp", "Foo.class"),
 		OutputDir:  "out",
+		Classpath:  []string{"input.jar", "/deps/a.jar"},
 	})
 	if err != nil {
 		t.Fatalf("RunCFR() error = %v", err)
@@ -108,7 +115,11 @@ func TestRunCFRSupportsDirectJarPath(t *testing.T) {
 	if fake.spec.Path != "java" {
 		t.Fatalf("Path = %q, want java", fake.spec.Path)
 	}
-	want := []string{"-jar", "/tools/cfr.jar", filepath.Join("tmp", "Foo.class"), "--outputdir", "out"}
+	want := []string{
+		"-jar", "/tools/cfr.jar", filepath.Join("tmp", "Foo.class"),
+		"--outputdir", "out",
+		"--extraclasspath", strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
+	}
 	if !slices.Equal(fake.spec.Args, want) {
 		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
 	}

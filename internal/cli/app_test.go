@@ -30,6 +30,8 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 		"--output", "out",
 		"--jadx-path", "/tools/jadx",
 		"--cfr-path", "/tools/cfr",
+		"--classpath", "/deps/base.jar",
+		"--classpath", "/deps/extra.jar",
 		"--temp-dir", "/tmp/jardec",
 		"--keep-temp",
 		"--retry-concurrency", "5",
@@ -58,6 +60,9 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	}
 	if got.RetryConcurrency != 5 {
 		t.Fatalf("RetryConcurrency = %d, want 5", got.RetryConcurrency)
+	}
+	if want := []string{"/deps/base.jar", "/deps/extra.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
 }
 
@@ -174,6 +179,7 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
 			CfrPath:                 "/config/cfr",
+			DecompileClasspath:      []string{"/deps/base.jar", "/deps/shared.jar"},
 			DefaultRetryConcurrency: 7,
 		}, nil
 	})
@@ -197,6 +203,9 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	if got.RetryConcurrency != 7 {
 		t.Fatalf("RetryConcurrency = %d, want 7", got.RetryConcurrency)
 	}
+	if want := []string{"/deps/base.jar", "/deps/shared.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
+	}
 }
 
 func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
@@ -212,6 +221,7 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
 			CfrPath:                 "/config/cfr",
+			DecompileClasspath:      []string{"/deps/base.jar", "/deps/shared.jar"},
 			DefaultRetryConcurrency: 7,
 		}, nil
 	})
@@ -223,6 +233,8 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 		"--output", "out",
 		"--jadx-path", "/flag/jadx",
 		"--cfr-path", "/flag/cfr",
+		"--classpath", "/deps/shared.jar",
+		"--classpath", "/deps/cli.jar",
 		"--retry-concurrency", "3",
 	})
 	if err != nil {
@@ -237,6 +249,9 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	}
 	if got.RetryConcurrency != 3 {
 		t.Fatalf("RetryConcurrency = %d, want 3", got.RetryConcurrency)
+	}
+	if want := []string{"/deps/base.jar", "/deps/shared.jar", "/deps/cli.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
 }
 

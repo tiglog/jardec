@@ -23,6 +23,7 @@ func main() {
 			OutputDir:        cfg.OutputDir,
 			JadxPath:         cfg.JadxPath,
 			CfrPath:          cfg.CfrPath,
+			ExtraClasspath:   cfg.ExtraClasspath,
 			TempDir:          cfg.TempDir,
 			KeepTemp:         cfg.KeepTemp,
 			RetryConcurrency: cfg.RetryConcurrency,

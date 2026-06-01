@@ -23,12 +23,13 @@ const (
 )
 
 type ClassResult struct {
-	BinaryName    string   `json:"binaryName"`
-	Status        Status   `json:"status"`
-	Origin        Origin   `json:"origin,omitempty"`
-	RetryReasons  []string `json:"retryReasons,omitempty"`
-	RetryOutcome  string   `json:"retryOutcome,omitempty"`
-	FailureReason string   `json:"failureReason,omitempty"`
+	BinaryName         string   `json:"binaryName"`
+	Status             Status   `json:"status"`
+	Origin             Origin   `json:"origin,omitempty"`
+	RetryReasons       []string `json:"retryReasons,omitempty"`
+	RetryOutcome       string   `json:"retryOutcome,omitempty"`
+	FailureReason      string   `json:"failureReason,omitempty"`
+	DependencyWarnings []string `json:"dependencyWarnings,omitempty"`
 }
 
 type Report struct {
@@ -147,6 +148,9 @@ func RenderText(rep Report) string {
 			line += fmt.Sprintf(", retryOutcome=%s", class.RetryOutcome)
 		case class.FailureReason != "":
 			line += fmt.Sprintf(", failure=%s", class.FailureReason)
+		}
+		if len(class.DependencyWarnings) > 0 {
+			line += fmt.Sprintf(", dependencyWarnings=%s", strings.Join(class.DependencyWarnings, ","))
 		}
 		line += "]"
 		lines = append(lines, line)

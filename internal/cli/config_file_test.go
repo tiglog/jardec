@@ -12,7 +12,7 @@ func TestLoadProjectConfigReadsYAMLFile(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, DefaultConfigFileName)
-	err := os.WriteFile(path, []byte("jadx_path: /tools/jadx\ncfr_path: /tools/cfr\njavac_path: /tools/javac\npatch_sources_classpath:\n  - /deps/base.jar\n  - /deps/extra.jar\ndefault_retry_concurrency: 9\n"), 0o644)
+	err := os.WriteFile(path, []byte("jadx_path: /tools/jadx\ncfr_path: /tools/cfr\njavac_path: /tools/javac\ndecompile_classpath:\n  - deps/runtime.jar\n  - /deps/external.jar\npatch_sources_classpath:\n  - /deps/base.jar\n  - /deps/extra.jar\ndefault_retry_concurrency: 9\n"), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -30,6 +30,9 @@ func TestLoadProjectConfigReadsYAMLFile(t *testing.T) {
 	}
 	if cfg.JavacPath != "/tools/javac" {
 		t.Fatalf("JavacPath = %q, want /tools/javac", cfg.JavacPath)
+	}
+	if want := []string{"deps/runtime.jar", "/deps/external.jar"}; !slices.Equal(cfg.DecompileClasspath, want) {
+		t.Fatalf("DecompileClasspath = %v, want %v", cfg.DecompileClasspath, want)
 	}
 	if want := []string{"/deps/base.jar", "/deps/extra.jar"}; !slices.Equal(cfg.PatchSourcesClasspath, want) {
 		t.Fatalf("PatchSourcesClasspath = %v, want %v", cfg.PatchSourcesClasspath, want)
@@ -49,7 +52,7 @@ func TestLoadProjectConfigMissingFileUsesEmptyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadProjectConfig() error = %v", err)
 	}
-	if cfg.JadxPath != "" || cfg.CfrPath != "" || cfg.JavacPath != "" || len(cfg.PatchSourcesClasspath) != 0 || cfg.DefaultRetryConcurrency != 0 || cfg.ConfigDir != "" {
+	if cfg.JadxPath != "" || cfg.CfrPath != "" || cfg.JavacPath != "" || len(cfg.DecompileClasspath) != 0 || len(cfg.PatchSourcesClasspath) != 0 || cfg.DefaultRetryConcurrency != 0 || cfg.ConfigDir != "" {
 		t.Fatalf("config = %#v, want zero-value fields", cfg)
 	}
 }

@@ -75,7 +75,9 @@ go run ./cmd/jardec decompile \
   --input sample.jar \
   --output out \
   --jadx-path /path/to/jadx \
-  --cfr-path /path/to/cfr
+  --cfr-path /path/to/cfr \
+  --classpath libs/dependency-a.jar \
+  --classpath libs/dependency-b.jar
 ```
 
 常用参数：
@@ -84,9 +86,28 @@ go run ./cmd/jardec decompile \
 - `--output`：输出目录
 - `--jadx-path`：`jadx` 可执行文件路径
 - `--cfr-path`：`cfr` 可执行文件或包装脚本路径
+- `--classpath`：为反编译追加依赖 JAR；当前保证用于 CFR fallback retry，可重复指定
 - `--temp-dir`：临时目录根路径
 - `--keep-temp`：保留中间工作目录
 - `--retry-concurrency`：`cfr` 回退并发数
+
+如果项目里经常复用同一组依赖，可以把默认反编译依赖写进 `config.yaml`：
+
+```yaml
+decompile_classpath:
+  - libs/dependency-a.jar
+  - libs/dependency-b.jar
+```
+
+`decompile` 的 classpath 顺序约定为：
+
+1. 输入 JAR（仅 CFR retry 自动加入）
+2. `config.yaml` 的 `decompile_classpath`
+3. 命令行上的 `--classpath`
+
+重复项会按首次出现顺序去重。`config.yaml` 里的相对路径会按 **该配置文件所在目录** 解析。
+
+> 当前已保证 **CFR fallback retry** 使用上述 classpath。JADX CLI 对外部依赖的支持能力有限，因此本版本不会承诺 `--classpath` 一定会影响首轮 JADX 整包反编译。
 
 `jardec` 现在采用显式子命令：
 
@@ -224,6 +245,9 @@ patch_sources_classpath:
 ```yaml
 jadx_path: /path/to/jadx
 cfr_path: /path/to/cfr
+decompile_classpath:
+  - libs/dependency-a.jar
+  - libs/dependency-b.jar
 javac_path: /path/to/javac
 patch_sources_classpath:
   - libs/dependency-a.jar
@@ -240,6 +264,7 @@ default_retry_concurrency: 4
 说明：
 
 - `patch_sources_classpath` 仅用于 `patch-sources`
+- `decompile_classpath` 用于 `decompile` 的 CFR fallback retry
 - `config.yaml` 中的相对路径按该配置文件所在目录解释
 
 仓库提供了 `config.yaml.example` 作为配置模板，可以复制后按本机环境修改：
@@ -263,6 +288,7 @@ cp config.yaml.example config.yaml
 - `totalElapsedMillis`：整次反编译总耗时
 - `retryElapsedMillis`：retry 阶段耗时
 - `retryOutcome`：某个 class 在回退阶段的最终结果，例如 `ambiguous_retry_output`、`invalid_retry_output`
+- `dependencyWarnings`：额外记录诸如 `Could not load the following classes` 这类依赖缺失降质信号；它们不会单独改变 success/failure 判定
 
 ## 项目结构
 

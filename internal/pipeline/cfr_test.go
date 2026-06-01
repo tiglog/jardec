@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"jardec/internal/decompiler"
@@ -59,6 +60,45 @@ func TestExecuteCFRRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 	}
 	if results[0].RootDir == results[1].RootDir {
 		t.Fatal("expected isolated retry workspaces, got shared root directory")
+	}
+}
+
+func TestExecuteCFRRetriesBuildsInputJarFirstClasspath(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{
+		"com/example/Foo.class": "foo",
+	})
+
+	var gotSpec decompiler.CommandSpec
+	fake := &fakeCfrRunner{
+		run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+			gotSpec = spec
+			outputDir := spec.Args[2]
+			writePipelineFile(t, outputDir, "com/example/Foo.java", "class Foo {}\n")
+			return decompiler.RunResult{}, nil
+		},
+	}
+
+	results, err := ExecuteCFRRetries(context.Background(), fake, CfrRetryConfig{
+		BaseTempDir:    t.TempDir(),
+		CfrPath:        "/tools/cfr",
+		InputJar:       jarPath,
+		ExtraClasspath: []string{"/deps/base.jar", jarPath, "/deps/cli.jar"},
+		Concurrency:    1,
+	}, []jarpkg.Class{
+		{BinaryName: "com.example.Foo", EntryPath: "com/example/Foo.class", SourcePath: "com/example/Foo.java"},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteCFRRetries() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+
+	wantClasspath := strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator))
+	if got := gotSpec.Args[4]; got != wantClasspath {
+		t.Fatalf("extraclasspath = %q, want %q", got, wantClasspath)
 	}
 }
 

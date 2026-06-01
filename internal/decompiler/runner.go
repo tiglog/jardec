@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -77,6 +78,7 @@ type CfrConfig struct {
 	BinaryPath string
 	ClassFile  string
 	OutputDir  string
+	Classpath  []string
 }
 
 func RunJadx(ctx context.Context, runner Runner, cfg JadxConfig) (RunResult, error) {
@@ -87,15 +89,19 @@ func RunJadx(ctx context.Context, runner Runner, cfg JadxConfig) (RunResult, err
 }
 
 func RunCFR(ctx context.Context, runner Runner, cfg CfrConfig) (RunResult, error) {
+	args := []string{cfg.ClassFile, "--outputdir", cfg.OutputDir}
+	if len(cfg.Classpath) > 0 {
+		args = append(args, "--extraclasspath", strings.Join(cfg.Classpath, string(filepath.ListSeparator)))
+	}
 	if strings.HasSuffix(strings.ToLower(cfg.BinaryPath), ".jar") {
 		return runner.Run(ctx, CommandSpec{
 			Path: "java",
-			Args: []string{"-jar", cfg.BinaryPath, cfg.ClassFile, "--outputdir", cfg.OutputDir},
+			Args: append([]string{"-jar", cfg.BinaryPath}, args...),
 		})
 	}
 
 	return runner.Run(ctx, CommandSpec{
 		Path: cfg.BinaryPath,
-		Args: []string{cfg.ClassFile, "--outputdir", cfg.OutputDir},
+		Args: args,
 	})
 }

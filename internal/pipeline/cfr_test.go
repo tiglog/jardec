@@ -78,6 +78,21 @@ func TestValidateRetryOutputRejectsAmbiguousJavaFiles(t *testing.T) {
 	}
 }
 
+func TestValidateRetryOutputRejectsInvalidJavaContent(t *testing.T) {
+	t.Parallel()
+
+	outputDir := t.TempDir()
+	writePipelineFile(t, outputDir, "com/example/Foo.java", "Code decompiled incorrectly\n")
+
+	err := ValidateRetryOutput(jarpkg.Class{
+		BinaryName: "com.example.Foo",
+		SourcePath: "com/example/Foo.java",
+	}, outputDir)
+	if !errors.Is(err, ErrInvalidRetryOutput) {
+		t.Fatalf("ValidateRetryOutput() error = %v, want ErrInvalidRetryOutput", err)
+	}
+}
+
 type fakeCfrRunner struct {
 	run func(spec decompiler.CommandSpec) (decompiler.RunResult, error)
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"jardec/internal/decompiler"
@@ -14,6 +15,7 @@ import (
 var (
 	ErrMissingRetryOutput   = errors.New("missing retry output")
 	ErrAmbiguousRetryOutput = errors.New("ambiguous retry output")
+	ErrInvalidRetryOutput   = errors.New("invalid retry output")
 )
 
 type CfrRetryConfig struct {
@@ -102,15 +104,20 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg CfrRe
 
 func ValidateRetryOutput(class jarpkg.Class, outputDir string) error {
 	expectedPath := filepath.Join(outputDir, filepath.FromSlash(class.SourcePath))
-	if _, err := os.Stat(expectedPath); err != nil {
+	content, err := os.ReadFile(expectedPath)
+	if err != nil {
 		if os.IsNotExist(err) {
 			return ErrMissingRetryOutput
 		}
 		return err
 	}
+	trimmed := strings.TrimSpace(string(content))
+	if trimmed == "" || hasPlaceholderFailure(trimmed) {
+		return ErrInvalidRetryOutput
+	}
 
 	javaFiles := make([]string, 0)
-	err := filepath.WalkDir(outputDir, func(path string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(outputDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

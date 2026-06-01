@@ -54,6 +54,12 @@ func TestEngineRecoversJadxWarnAndWritesReports(t *testing.T) {
 	if rep.JadxSucceeded != 1 || rep.CfrRecovered != 1 || rep.FinalFailed != 0 {
 		t.Fatalf("report counts = %+v", rep)
 	}
+	if rep.RetryCandidates != 1 {
+		t.Fatalf("RetryCandidates = %d, want 1", rep.RetryCandidates)
+	}
+	if rep.TotalElapsedMillis < 0 || rep.RetryElapsedMillis < 0 {
+		t.Fatalf("elapsed millis should be non-negative: %+v", rep)
+	}
 
 	content, err := os.ReadFile(filepath.Join(outputDir, "sources/com/example/Foo.java"))
 	if err != nil {
@@ -120,8 +126,11 @@ func TestEngineMarksAmbiguousRetryOutputAsFailure(t *testing.T) {
 	if rep.FinalFailed != 1 {
 		t.Fatalf("FinalFailed = %d, want 1", rep.FinalFailed)
 	}
-	if rep.Classes[0].FailureReason != "ambiguous_retry_output" {
-		t.Fatalf("FailureReason = %q, want ambiguous_retry_output", rep.Classes[0].FailureReason)
+	if rep.Classes[0].RetryOutcome != "ambiguous_retry_output" {
+		t.Fatalf("RetryOutcome = %q, want ambiguous_retry_output", rep.Classes[0].RetryOutcome)
+	}
+	if !strings.Contains(ireport.RenderText(rep), "Retry candidates: 1") {
+		t.Fatalf("RenderText() missing retry summary: %q", ireport.RenderText(rep))
 	}
 }
 
@@ -160,8 +169,8 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 	if rep.FinalFailed != 1 {
 		t.Fatalf("FinalFailed = %d, want 1", rep.FinalFailed)
 	}
-	if rep.Classes[0].FailureReason != "cfr_execution_failed" {
-		t.Fatalf("FailureReason = %q, want cfr_execution_failed", rep.Classes[0].FailureReason)
+	if rep.Classes[0].RetryOutcome != "cfr_execution_failed" {
+		t.Fatalf("RetryOutcome = %q, want cfr_execution_failed", rep.Classes[0].RetryOutcome)
 	}
 }
 

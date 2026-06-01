@@ -7,12 +7,14 @@ import (
 	"os"
 
 	appcli "jardec/internal/cli"
+	"jardec/internal/patch"
 	"jardec/internal/pipeline"
 	ireport "jardec/internal/report"
 )
 
 func main() {
 	engine := pipeline.Engine{}
+	patchEngine := patch.Engine{}
 	app := appcli.NewApp(func(ctx context.Context, cfg appcli.Config) error {
 		rep, err := engine.Run(ctx, pipeline.Config{
 			InputPath:        cfg.InputPath,
@@ -28,6 +30,14 @@ func main() {
 		}
 
 		fmt.Print(ireport.RenderText(rep))
+		return nil
+	}, func(ctx context.Context, cfg appcli.PatchConfig) error {
+		rep, err := patchEngine.Run(ctx, cfg)
+		if err != nil {
+			return err
+		}
+
+		fmt.Print(ireport.RenderPatchText(rep))
 		return nil
 	}, nil)
 	if err := app.Run(os.Args); err != nil {

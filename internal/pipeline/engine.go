@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"jardec/internal/decompiler"
 	jarpkg "jardec/internal/jar"
@@ -29,6 +30,7 @@ type Engine struct {
 }
 
 func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
+	runStartedAt := time.Now()
 	if e.JadxRunner == nil {
 		e.JadxRunner = decompiler.CommandRunner{}
 	}
@@ -92,12 +94,14 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 		retryClasses = append(retryClasses, class)
 	}
 
+	retryStartedAt := time.Now()
 	retryResults, err := ExecuteCFRRetries(ctx, e.CfrRunner, CfrRetryConfig{
 		BaseTempDir: cfg.TempDir,
 		CfrPath:     cfg.CfrPath,
 		InputJar:    cfg.InputPath,
 		Concurrency: cfg.RetryConcurrency,
 	}, retryClasses)
+	retryElapsed := time.Since(retryStartedAt)
 	if err != nil {
 		return ireport.Report{}, err
 	}
@@ -113,6 +117,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 
 		if result.Err != nil {
 			classReport.Status = ireport.StatusFailed
+			classReport.RetryOutcome = "cfr_execution_failed"
 			classReport.FailureReason = "cfr_execution_failed"
 			classReports[result.Class.BinaryName] = classReport
 			continue
@@ -120,6 +125,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 
 		if err := ValidateRetryOutput(result.Class, result.OutputDir); err != nil {
 			classReport.Status = ireport.StatusFailed
+			classReport.RetryOutcome = mapRetryFailure(err)
 			classReport.FailureReason = mapRetryFailure(err)
 			classReports[result.Class.BinaryName] = classReport
 			continue
@@ -127,6 +133,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 
 		if err := merge.ApplyRecovery(filepath.Join(cfg.OutputDir, "sources"), result.Class, result.OutputDir); err != nil {
 			classReport.Status = ireport.StatusFailed
+			classReport.RetryOutcome = "merge_failed"
 			classReport.FailureReason = "merge_failed"
 			classReports[result.Class.BinaryName] = classReport
 			continue
@@ -140,6 +147,9 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	rep := ireport.Report{
 		Jar:                  filepath.Base(cfg.InputPath),
 		TotalTopLevelClasses: len(classes),
+		RetryCandidates:      len(retryClasses),
+		TotalElapsedMillis:   time.Since(runStartedAt).Milliseconds(),
+		RetryElapsedMillis:   retryElapsed.Milliseconds(),
 		Classes:              make([]ireport.ClassResult, 0, len(classes)),
 	}
 	for _, class := range classes {
@@ -171,6 +181,8 @@ func mapRetryFailure(err error) string {
 		return "ambiguous_retry_output"
 	case errors.Is(err, ErrMissingRetryOutput):
 		return "missing_retry_output"
+	case errors.Is(err, ErrInvalidRetryOutput):
+		return "invalid_retry_output"
 	default:
 		return "retry_validation_failed"
 	}

@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	defaultJadxBinary = "jadx"
-	defaultCfrBinary  = "cfr"
+	defaultJadxBinary  = "jadx"
+	defaultCfrBinary   = "cfr"
+	defaultJavacBinary = "javac"
 )
 
 type Config struct {

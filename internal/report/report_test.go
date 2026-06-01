@@ -92,15 +92,22 @@ func TestRenderPatchTextSummarizesPatchedGroupsAndCleanup(t *testing.T) {
 		InputJar:              "input.jar",
 		OutputJar:             "patched.jar",
 		DryRun:                true,
+		Noop:                  false,
 		ReplacedGroups:        1,
+		UnchangedGroups:       1,
 		RemovedStaleEntries:   2,
 		RemovedSignatureFiles: 1,
 		ElapsedMillis:         9,
 		Groups: []PatchGroupResult{
 			{
 				BinaryName:          "com.example.Foo",
+				Status:              "changed",
 				ReplacedEntries:     []string{"com/example/Foo.class", "com/example/Foo$Inner.class"},
 				RemovedStaleEntries: []string{"com/example/Foo$Old.class"},
+			},
+			{
+				BinaryName: "com.example.Bar",
+				Status:     "unchanged",
 			},
 		},
 		SignatureFiles: []string{"META-INF/SIGNER.SF"},
@@ -111,13 +118,81 @@ func TestRenderPatchTextSummarizesPatchedGroupsAndCleanup(t *testing.T) {
 		"Input JAR: input.jar",
 		"Output JAR: patched.jar",
 		"Dry run: true",
+		"No-op: false",
 		"Replaced groups: 1",
+		"Unchanged groups: 1",
 		"Removed stale entries: 2",
 		"Removed signature files: 1",
 		"Elapsed:",
-		"com.example.Foo",
+		"com.example.Foo [changed]",
+		"com.example.Bar [unchanged]",
 		"com/example/Foo$Old.class",
 		"META-INF/SIGNER.SF",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("RenderPatchText() = %q, want substring %q", text, want)
+		}
+	}
+}
+
+func TestRenderPatchTextSummarizesNoOpAndPreservedSignatures(t *testing.T) {
+	t.Parallel()
+
+	rep := PatchReport{
+		InputJar:            "input.jar",
+		OutputJar:           "patched.jar",
+		Noop:                true,
+		ReplacedGroups:      0,
+		UnchangedGroups:     1,
+		ElapsedMillis:       3,
+		PreservedSignatures: []string{"META-INF/SIGNER.SF"},
+		Groups: []PatchGroupResult{
+			{
+				BinaryName: "com.example.Foo",
+				Status:     "unchanged",
+			},
+		},
+	}
+
+	text := RenderPatchText(rep)
+	for _, want := range []string{
+		"No-op: true",
+		"Unchanged groups: 1",
+		"com.example.Foo [unchanged]",
+		"Preserved signature files:",
+		"META-INF/SIGNER.SF",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("RenderPatchText() = %q, want substring %q", text, want)
+		}
+	}
+}
+
+func TestRenderPatchTextIncludesCompileDetails(t *testing.T) {
+	t.Parallel()
+
+	rep := PatchReport{
+		InputJar:      "input.jar",
+		OutputJar:     "patched.jar",
+		ElapsedMillis: 5,
+		Compile: &PatchCompileReport{
+			SourceRoot:    "src",
+			JavacPath:     "/tools/javac",
+			TargetClasses: []string{"com.example.Foo"},
+			Classpath:     []string{"input.jar", "deps/a.jar"},
+			Status:        StatusFailed,
+			Diagnostics:   "Foo.java:1: error",
+		},
+	}
+
+	text := RenderPatchText(rep)
+	for _, want := range []string{
+		"Compile source root: src",
+		"Compile javac: /tools/javac",
+		"Compile status: failed",
+		"Compile targets: com.example.Foo",
+		"Compile classpath: input.jar",
+		"Foo.java:1: error",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("RenderPatchText() = %q, want substring %q", text, want)

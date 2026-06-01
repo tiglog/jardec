@@ -12,6 +12,7 @@
 - 生成 `report.json` 和 `report.txt`
 - 将已编译的 `.class` 变更按 top-level class group 打回原 JAR
 - 支持 patch dry-run、显式 class group 选择和持久化 patch 报告
+- 对 patch replacement 做 class identity 校验，并识别 unchanged / no-op patch
 - 在反编译报告中输出 retry 候选数、retry 结果和耗时摘要
 
 ## 依赖
@@ -19,6 +20,7 @@
 - Go 1.24+
 - 本地可用的 `jadx`
 - 本地可用的 `cfr`
+- 本地可用的 `javac`（仅 `patch-sources` 需要）
 
 ## 安装 `jadx` 和 `cfr`
 
@@ -69,7 +71,7 @@ make run
 ## 直接运行
 
 ```bash
-go run ./cmd/jardec \
+go run ./cmd/jardec decompile \
   --input sample.jar \
   --output out \
   --jadx-path /path/to/jadx \
@@ -86,9 +88,15 @@ go run ./cmd/jardec \
 - `--keep-temp`：保留中间工作目录
 - `--retry-concurrency`：`cfr` 回退并发数
 
+`jardec` 现在采用显式子命令：
+
+- `jardec decompile ...`：执行反编译
+- `jardec patch-classes ...`：把已编译的 `.class` 增量打回原 JAR
+- `jardec patch-sources ...`：先编译少量 Java 源码，再复用 patch 流程回写原 JAR
+
 ## Patch 已编译 class 回原 JAR
 
-`patch-classes` 用于把已经重新编译好的 `.class` 文件增量写回原始 JAR。v1 **只支持 compiled-class-only**：你需要先在外部完成 Java 编译，再把编译产物目录交给 `jardec`。
+`patch-classes` 用于把已经重新编译好的 `.class` 文件增量写回原始 JAR。它仍然是底层的 **compiled-class-only** 入口：如果你已经有确定的 `.class` 输出，直接用它最简单。
 
 命令格式：
 
@@ -123,12 +131,15 @@ go run ./cmd/jardec patch-classes \
 行为约定：
 
 - 自动扫描 `--classes-dir` 下的 `.class` 文件
+- 会校验每个 replacement `.class` 的内部 binary name 与归档路径一致，避免误把错误产物打进包
 - 可用 `--class` 精确限制只处理某些 top-level binary class name
-- 可用 `--dry-run` 先预览会替换哪些 entries、会删除哪些陈旧内部类和签名文件
+- 可用 `--dry-run` 先预览哪些 group 会真正变更、哪些只是 unchanged，因此不会改写归档
 - 以 **top-level class group** 作为替换单元，例如 `Foo.class` 会连同 `Foo$*.class` 一起处理
 - 新产物中不存在、但原 JAR 中属于同一 group 的旧内部类会被移除
 - 与 patch 无关的资源文件会被保留
-- 如果原 JAR 带签名，patch 后会自动移除失效的 `META-INF/*.SF`、`*.RSA`、`*.DSA`
+- 对已存在的 class entry，会尽量保留原 ZIP metadata，并在原 group 位置附近写回，减少 patched JAR 的结构漂移
+- 如果所有目标 group 都 unchanged，apply 会保留原 JAR 字节级内容，不会重建归档，也不会移除签名文件
+- 如果原 JAR 带签名，只有在本次 patch 真的改动归档内容时，才会移除失效的 `META-INF/*.SF`、`*.RSA`、`*.DSA`
 - patch 总会写出报告文件：
   - `<output-jar>.report.json`
   - `<output-jar>.report.txt`
@@ -150,11 +161,61 @@ go run ./cmd/jardec patch-classes \
 
 终端和 patch report 会输出：
 
-- 替换了哪些 class group
+- 哪些 class group 被判定为 `changed` 或 `unchanged`
+- 本次是否为 no-op
 - 删除了哪些陈旧内部类
-- 是否移除了失效签名文件
+- 失效签名文件是被移除还是被保留
 - 本次是否为 dry-run
 - patch 执行耗时
+
+## Patch 已编辑 Java 源码回原 JAR
+
+`patch-sources` 适合“只改了少量 `.java`，想先编译这些 target，再把结果回写原包”的场景。它不会尝试重建整个工程；v1 只支持 **显式 target + 显式 classpath** 的受控编译。
+
+命令格式：
+
+```bash
+go run ./cmd/jardec patch-sources \
+  --input-jar app.jar \
+  --sources-dir edited-src \
+  --output-jar app.patched.jar \
+  --class com.example.Foo \
+  --javac-path /path/to/javac \
+  --classpath libs/dependency-a.jar \
+  --classpath libs/dependency-b.jar
+```
+
+行为约定：
+
+- 必须至少提供一个 `--class`，并按 top-level binary class name 指定，例如 `com.example.Foo`
+- `--class` 只接受 top-level class；像 `com.example.Foo$Inner` 这样的 nested target 会直接报错
+- `--sources-dir` 需要满足稳定映射：`com.example.Foo` 对应 `edited-src/com/example/Foo.java`
+- 编译时会自动把 `--input-jar` 加入 classpath，再把 `config.yaml` 里的 `patch_sources_classpath` 依次接在后面，最后再追加每个 `--classpath`
+- 编译产物会先写入隔离的临时 classes 目录，再复用现有 `patch-classes` patch 逻辑
+- 如果 `javac` 失败，或成功退出但没有产生某个 target 对应的 top-level `.class`，命令会在改写归档前失败
+- `patch-sources` 同样会写出 `<output-jar>.report.json` 和 `<output-jar>.report.txt`，其中会额外记录 compile 阶段状态和诊断
+
+和 `patch-classes` 的区别：
+
+- `patch-classes`：你自己准备好 `.class`，`jardec` 只负责 patch
+- `patch-sources`：`jardec` 先用 `javac` 编译指定 `.java`，再复用同一套 patch 语义
+
+如果项目里经常复用同一组依赖，可以把默认编译环境写进 `config.yaml`：
+
+```yaml
+javac_path: /path/to/javac
+patch_sources_classpath:
+  - libs/dependency-a.jar
+  - libs/dependency-b.jar
+```
+
+优先级和拼接顺序是：
+
+1. 输入 JAR（自动加入）
+2. `config.yaml` 的 `patch_sources_classpath`
+3. 命令行上的 `--classpath`
+
+其中重复项会按首次出现顺序去重，命令行仍然可以用于一次性的追加依赖。`config.yaml` 里的相对路径会按 **该配置文件所在目录** 解析，因此从子目录执行命令时也能稳定找到同一组依赖。
 
 ## 配置文件
 
@@ -163,6 +224,10 @@ go run ./cmd/jardec patch-classes \
 ```yaml
 jadx_path: /path/to/jadx
 cfr_path: /path/to/cfr
+javac_path: /path/to/javac
+patch_sources_classpath:
+  - libs/dependency-a.jar
+  - libs/dependency-b.jar
 default_retry_concurrency: 4
 ```
 
@@ -171,6 +236,11 @@ default_retry_concurrency: 4
 1. CLI 显式参数
 2. `config.yaml`
 3. 内建默认值
+
+说明：
+
+- `patch_sources_classpath` 仅用于 `patch-sources`
+- `config.yaml` 中的相对路径按该配置文件所在目录解释
 
 仓库提供了 `config.yaml.example` 作为配置模板，可以复制后按本机环境修改：
 
@@ -205,4 +275,5 @@ internal/merge/         回退结果覆盖合并
 internal/patch/         JAR patching 与归档重写
 internal/pipeline/      主流程编排
 internal/report/        报告模型与输出
+internal/sourcepatch/   Java source compile + patch 编排
 ```

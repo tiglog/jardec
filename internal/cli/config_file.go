@@ -12,9 +12,12 @@ import (
 const DefaultConfigFileName = "config.yaml"
 
 type ProjectConfig struct {
-	JadxPath                string `yaml:"jadx_path"`
-	CfrPath                 string `yaml:"cfr_path"`
-	DefaultRetryConcurrency int    `yaml:"default_retry_concurrency"`
+	JadxPath                string   `yaml:"jadx_path"`
+	CfrPath                 string   `yaml:"cfr_path"`
+	JavacPath               string   `yaml:"javac_path"`
+	PatchSourcesClasspath   []string `yaml:"patch_sources_classpath"`
+	DefaultRetryConcurrency int      `yaml:"default_retry_concurrency"`
+	ConfigDir               string   `yaml:"-"`
 }
 
 func loadProjectConfigFromWorkingDir() (ProjectConfig, error) {
@@ -36,6 +39,7 @@ func LoadProjectConfig(rootDir string) (ProjectConfig, error) {
 			if err := yaml.Unmarshal(data, &cfg); err != nil {
 				return ProjectConfig{}, fmt.Errorf("parse config file: %w", err)
 			}
+			cfg.ConfigDir = currentDir
 			return cfg, nil
 		}
 		if !errors.Is(err, os.ErrNotExist) {

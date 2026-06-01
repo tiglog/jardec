@@ -4,5 +4,13 @@ jadx_path: /path/to/jadx
 # Path to the cfr executable, wrapper script, or cfr.jar used for per-class fallback retries.
 cfr_path: /path/to/cfr
 
+# Path to the javac executable used by patch-sources.
+javac_path: /path/to/javac
+
+# Default classpath entries appended after the input JAR for patch-sources.
+patch_sources_classpath:
+  - libs/dependency-a.jar
+  - libs/dependency-b.jar
+
 # Default number of concurrent CFR retry workers when --retry-concurrency is not provided.
 default_retry_concurrency: 4

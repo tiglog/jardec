@@ -25,6 +25,7 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 
 	err := app.RunContext(context.Background(), []string{
 		"jardec",
+		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/tools/jadx",
@@ -82,6 +83,28 @@ func TestNewAppRejectsMissingRequiredOptions(t *testing.T) {
 	}
 }
 
+func TestRootCommandDoesNotRunDecompile(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	app := newAppWithDeps(func(_ context.Context, _ Config) error {
+		called = true
+		return nil
+	}, nil, func(name string) (string, error) {
+		return "/resolved/" + name, nil
+	}, func() (ProjectConfig, error) {
+		return ProjectConfig{}, nil
+	})
+
+	err := app.RunContext(context.Background(), []string{"jardec", "--input", "sample.jar", "--output", "out"})
+	if err == nil {
+		t.Fatal("RunContext() error = nil, want root command rejection")
+	}
+	if called {
+		t.Fatal("run callback was called from root command")
+	}
+}
+
 func TestNewAppUsesExplicitBinaryOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -97,6 +120,7 @@ func TestNewAppUsesExplicitBinaryOverrides(t *testing.T) {
 
 	err := app.RunContext(context.Background(), []string{
 		"jardec",
+		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/custom/jadx",
@@ -128,6 +152,7 @@ func TestNewAppReportsBinaryLookupFailures(t *testing.T) {
 
 	err := app.RunContext(context.Background(), []string{
 		"jardec",
+		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
 	})
@@ -155,6 +180,7 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 
 	err := app.RunContext(context.Background(), []string{
 		"jardec",
+		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
 	})
@@ -192,6 +218,7 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 
 	err := app.RunContext(context.Background(), []string{
 		"jardec",
+		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/flag/jadx",
@@ -240,6 +267,7 @@ func TestNewAppSupportsDirectCFRJarPath(t *testing.T) {
 
 	err := app.RunContext(context.Background(), []string{
 		"jardec",
+		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
 		"--cfr-path", cfrJar,
@@ -434,5 +462,158 @@ func TestPatchClassesCommandRejectsInvalidInputPaths(t *testing.T) {
 				t.Fatalf("RunContext() error = %v, want substring %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestPatchSourcesCommandParsesOptionsIntoSourcePatchConfig(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputJar := filepath.Join(dir, "sample.jar")
+	if err := os.WriteFile(inputJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	sourcesDir := filepath.Join(dir, "src")
+	if err := os.MkdirAll(filepath.Join(sourcesDir, "com", "example"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourcesDir, "com", "example", "Foo.java"), []byte("class Foo {}"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var got SourcePatchConfig
+	app := newSourcePatchAppWithDeps(func(_ context.Context, _ Config) error {
+		t.Fatal("decompile callback should not be called for patch-sources")
+		return nil
+	}, nil, func(_ context.Context, cfg SourcePatchConfig) error {
+		got = cfg
+		return nil
+	}, func(name string) (string, error) {
+		return "/resolved/" + name, nil
+	}, func() (ProjectConfig, error) {
+		return ProjectConfig{}, nil
+	})
+
+	err := app.RunContext(context.Background(), []string{
+		"jardec",
+		"patch-sources",
+		"--input-jar", inputJar,
+		"--sources-dir", sourcesDir,
+		"--output-jar", filepath.Join(dir, "patched.jar"),
+		"--class", "com.example.Foo",
+		"--javac-path", "/tools/javac",
+		"--classpath", "/deps/a.jar",
+		"--classpath", "/deps/b.jar",
+	})
+	if err != nil {
+		t.Fatalf("RunContext() error = %v", err)
+	}
+
+	if got.InputJarPath != inputJar {
+		t.Fatalf("InputJarPath = %q, want %q", got.InputJarPath, inputJar)
+	}
+	if got.SourcesDir != sourcesDir {
+		t.Fatalf("SourcesDir = %q, want %q", got.SourcesDir, sourcesDir)
+	}
+	if got.OutputJarPath != filepath.Join(dir, "patched.jar") {
+		t.Fatalf("OutputJarPath = %q, want %q", got.OutputJarPath, filepath.Join(dir, "patched.jar"))
+	}
+	if want := []string{"com.example.Foo"}; !slices.Equal(got.TargetClasses, want) {
+		t.Fatalf("TargetClasses = %v, want %v", got.TargetClasses, want)
+	}
+	if got.JavacPath != "/tools/javac" {
+		t.Fatalf("JavacPath = %q, want /tools/javac", got.JavacPath)
+	}
+	if want := []string{"/deps/a.jar", "/deps/b.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
+	}
+}
+
+func TestPatchSourcesCommandRejectsMissingTargetClass(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputJar := filepath.Join(dir, "sample.jar")
+	if err := os.WriteFile(inputJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	sourcesDir := filepath.Join(dir, "src")
+	if err := os.MkdirAll(sourcesDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	called := false
+	app := newSourcePatchAppWithDeps(func(_ context.Context, _ Config) error {
+		t.Fatal("decompile callback should not be called for patch-sources")
+		return nil
+	}, nil, func(_ context.Context, _ SourcePatchConfig) error {
+		called = true
+		return nil
+	}, func(name string) (string, error) {
+		return "/resolved/" + name, nil
+	}, func() (ProjectConfig, error) {
+		return ProjectConfig{}, nil
+	})
+
+	err := app.RunContext(context.Background(), []string{
+		"jardec",
+		"patch-sources",
+		"--input-jar", inputJar,
+		"--sources-dir", sourcesDir,
+		"--output-jar", filepath.Join(dir, "patched.jar"),
+	})
+	if err == nil {
+		t.Fatal("RunContext() error = nil, want validation error")
+	}
+	if !strings.Contains(err.Error(), "at least one class target is required") {
+		t.Fatalf("RunContext() error = %v, want class target validation", err)
+	}
+	if called {
+		t.Fatal("source patch callback was called despite validation failure")
+	}
+}
+
+func TestPatchSourcesCommandUsesConfigFileJavacDefault(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputJar := filepath.Join(dir, "sample.jar")
+	if err := os.WriteFile(inputJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	sourcesDir := filepath.Join(dir, "src")
+	if err := os.MkdirAll(filepath.Join(sourcesDir, "com", "example"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourcesDir, "com", "example", "Foo.java"), []byte("class Foo {}"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var got SourcePatchConfig
+	app := newSourcePatchAppWithDeps(func(_ context.Context, _ Config) error {
+		t.Fatal("decompile callback should not be called for patch-sources")
+		return nil
+	}, nil, func(_ context.Context, cfg SourcePatchConfig) error {
+		got = cfg
+		return nil
+	}, func(name string) (string, error) {
+		return "/resolved/" + name, nil
+	}, func() (ProjectConfig, error) {
+		return ProjectConfig{JavacPath: "/config/javac"}, nil
+	})
+
+	err := app.RunContext(context.Background(), []string{
+		"jardec",
+		"patch-sources",
+		"--input-jar", inputJar,
+		"--sources-dir", sourcesDir,
+		"--output-jar", filepath.Join(dir, "patched.jar"),
+		"--class", "com.example.Foo",
+	})
+	if err != nil {
+		t.Fatalf("RunContext() error = %v", err)
+	}
+	if got.JavacPath != "/config/javac" {
+		t.Fatalf("JavacPath = %q, want /config/javac", got.JavacPath)
 	}
 }

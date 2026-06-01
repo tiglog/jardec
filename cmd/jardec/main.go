@@ -10,11 +10,13 @@ import (
 	"jardec/internal/patch"
 	"jardec/internal/pipeline"
 	ireport "jardec/internal/report"
+	"jardec/internal/sourcepatch"
 )
 
 func main() {
 	engine := pipeline.Engine{}
 	patchEngine := patch.Engine{}
+	sourcePatchEngine := sourcepatch.Engine{}
 	app := appcli.NewApp(func(ctx context.Context, cfg appcli.Config) error {
 		rep, err := engine.Run(ctx, pipeline.Config{
 			InputPath:        cfg.InputPath,
@@ -39,6 +41,12 @@ func main() {
 
 		fmt.Print(ireport.RenderPatchText(rep))
 		return nil
+	}, func(ctx context.Context, cfg appcli.SourcePatchConfig) error {
+		rep, err := sourcePatchEngine.Run(ctx, cfg)
+		if rep.InputJar != "" || rep.OutputJar != "" {
+			fmt.Print(ireport.RenderPatchText(rep))
+		}
+		return err
 	}, nil)
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)

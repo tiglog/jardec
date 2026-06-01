@@ -45,20 +45,34 @@ type Report struct {
 
 type PatchGroupResult struct {
 	BinaryName          string   `json:"binaryName"`
-	ReplacedEntries     []string `json:"replacedEntries"`
+	Status              string   `json:"status,omitempty"`
+	ReplacedEntries     []string `json:"replacedEntries,omitempty"`
 	RemovedStaleEntries []string `json:"removedStaleEntries,omitempty"`
 }
 
+type PatchCompileReport struct {
+	SourceRoot    string   `json:"sourceRoot,omitempty"`
+	JavacPath     string   `json:"javacPath,omitempty"`
+	TargetClasses []string `json:"targetClasses,omitempty"`
+	Classpath     []string `json:"classpath,omitempty"`
+	Status        Status   `json:"status,omitempty"`
+	Diagnostics   string   `json:"diagnostics,omitempty"`
+}
+
 type PatchReport struct {
-	InputJar              string             `json:"inputJar"`
-	OutputJar             string             `json:"outputJar"`
-	DryRun                bool               `json:"dryRun,omitempty"`
-	ReplacedGroups        int                `json:"replacedGroups"`
-	RemovedStaleEntries   int                `json:"removedStaleEntries"`
-	RemovedSignatureFiles int                `json:"removedSignatureFiles"`
-	ElapsedMillis         int64              `json:"elapsedMillis"`
-	Groups                []PatchGroupResult `json:"groups"`
-	SignatureFiles        []string           `json:"signatureFiles,omitempty"`
+	InputJar              string              `json:"inputJar"`
+	OutputJar             string              `json:"outputJar"`
+	DryRun                bool                `json:"dryRun,omitempty"`
+	Noop                  bool                `json:"noop,omitempty"`
+	ReplacedGroups        int                 `json:"replacedGroups"`
+	UnchangedGroups       int                 `json:"unchangedGroups,omitempty"`
+	RemovedStaleEntries   int                 `json:"removedStaleEntries"`
+	RemovedSignatureFiles int                 `json:"removedSignatureFiles"`
+	ElapsedMillis         int64               `json:"elapsedMillis"`
+	Groups                []PatchGroupResult  `json:"groups"`
+	SignatureFiles        []string            `json:"signatureFiles,omitempty"`
+	PreservedSignatures   []string            `json:"preservedSignatures,omitempty"`
+	Compile               *PatchCompileReport `json:"compile,omitempty"`
 }
 
 func WriteJSON(path string, rep Report) error {
@@ -146,7 +160,9 @@ func RenderPatchText(rep PatchReport) string {
 		fmt.Sprintf("Input JAR: %s", rep.InputJar),
 		fmt.Sprintf("Output JAR: %s", rep.OutputJar),
 		fmt.Sprintf("Dry run: %t", rep.DryRun),
+		fmt.Sprintf("No-op: %t", rep.Noop),
 		fmt.Sprintf("Replaced groups: %d", rep.ReplacedGroups),
+		fmt.Sprintf("Unchanged groups: %d", rep.UnchangedGroups),
 		fmt.Sprintf("Removed stale entries: %d", rep.RemovedStaleEntries),
 		fmt.Sprintf("Removed signature files: %d", rep.RemovedSignatureFiles),
 		fmt.Sprintf("Elapsed: %s", formatElapsedMillis(rep.ElapsedMillis)),
@@ -155,11 +171,34 @@ func RenderPatchText(rep PatchReport) string {
 	if rep.RemovedSignatureFiles > 0 {
 		lines = append(lines, "Signature cleanup: invalidated archive signatures were removed")
 	}
+	if len(rep.PreservedSignatures) > 0 {
+		lines = append(lines, "Signature cleanup: preserved existing archive signatures because no archive changes were applied")
+	}
+	if rep.Compile != nil {
+		lines = append(lines, "",
+			fmt.Sprintf("Compile source root: %s", rep.Compile.SourceRoot),
+			fmt.Sprintf("Compile javac: %s", rep.Compile.JavacPath),
+			fmt.Sprintf("Compile status: %s", rep.Compile.Status),
+		)
+		if len(rep.Compile.TargetClasses) > 0 {
+			lines = append(lines, fmt.Sprintf("Compile targets: %s", strings.Join(rep.Compile.TargetClasses, ", ")))
+		}
+		if len(rep.Compile.Classpath) > 0 {
+			lines = append(lines, fmt.Sprintf("Compile classpath: %s", strings.Join(rep.Compile.Classpath, string(os.PathListSeparator))))
+		}
+		if rep.Compile.Diagnostics != "" {
+			lines = append(lines, "Compile diagnostics:", rep.Compile.Diagnostics)
+		}
+	}
 
 	if len(rep.Groups) > 0 {
-		lines = append(lines, "", "Patched groups:")
+		lines = append(lines, "", "Groups:")
 		for _, group := range rep.Groups {
-			lines = append(lines, fmt.Sprintf("- %s", group.BinaryName))
+			if group.Status != "" {
+				lines = append(lines, fmt.Sprintf("- %s [%s]", group.BinaryName, group.Status))
+			} else {
+				lines = append(lines, fmt.Sprintf("- %s", group.BinaryName))
+			}
 			for _, entry := range group.ReplacedEntries {
 				lines = append(lines, fmt.Sprintf("  replace: %s", entry))
 			}
@@ -172,6 +211,12 @@ func RenderPatchText(rep PatchReport) string {
 	if len(rep.SignatureFiles) > 0 {
 		lines = append(lines, "", "Removed signature files:")
 		for _, entry := range rep.SignatureFiles {
+			lines = append(lines, fmt.Sprintf("- %s", entry))
+		}
+	}
+	if len(rep.PreservedSignatures) > 0 {
+		lines = append(lines, "", "Preserved signature files:")
+		for _, entry := range rep.PreservedSignatures {
 			lines = append(lines, fmt.Sprintf("- %s", entry))
 		}
 	}

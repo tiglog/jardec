@@ -40,11 +40,12 @@ func ClassifyJadxResult(class jarpkg.Class, sourcesDir string, result decompiler
 		return Classification{}, err
 	}
 
-	trimmed := strings.TrimSpace(string(content))
+	sourceContent := string(content)
+	trimmed := strings.TrimSpace(sourceContent)
 	if trimmed == "" {
 		reasons = appendReason(reasons, RetryReasonEmptyOutput)
 	}
-	if strings.Contains(string(content), "JADX WARN") {
+	if strings.Contains(sourceContent, "JADX WARN") {
 		reasons = appendReason(reasons, RetryReasonJADXWarn)
 	}
 	if hasPlaceholderFailure(trimmed) {

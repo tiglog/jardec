@@ -26,8 +26,9 @@ func EnumerateTopLevelClasses(jarPath string) ([]Class, error) {
 			continue
 		}
 
-		sourcePath := strings.TrimSuffix(file.Name, ".class") + ".java"
-		binaryName := strings.ReplaceAll(strings.TrimSuffix(file.Name, ".class"), "/", ".")
+		nameWithoutClass := strings.TrimSuffix(file.Name, ".class")
+		sourcePath := nameWithoutClass + ".java"
+		binaryName := strings.ReplaceAll(nameWithoutClass, "/", ".")
 		classes = append(classes, Class{
 			BinaryName: binaryName,
 			EntryPath:  file.Name,

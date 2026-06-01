@@ -247,15 +247,16 @@ func copyTree(srcRoot, dstRoot string) error {
 		if err != nil {
 			return err
 		}
-		defer srcFile.Close()
 
 		dstFile, err := os.Create(dstPath)
 		if err != nil {
+			srcFile.Close()
 			return err
 		}
-		defer dstFile.Close()
 
 		_, err = io.Copy(dstFile, srcFile)
+		srcFile.Close()
+		dstFile.Close()
 		return err
 	})
 }

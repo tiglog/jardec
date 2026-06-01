@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"sort"
 	"strings"
 
 	urfavecli "github.com/urfave/cli/v2"
@@ -144,7 +145,13 @@ func isJarPath(path string) bool {
 
 func expandClasspathEntry(entry string) ([]string, error) {
 	info, err := os.Stat(entry)
-	if err != nil || !info.IsDir() {
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("stat classpath entry: %w", err)
+		}
+		return []string{entry}, nil
+	}
+	if !info.IsDir() {
 		return []string{entry}, nil
 	}
 
@@ -160,6 +167,7 @@ func expandClasspathEntry(entry string) ([]string, error) {
 		}
 		expanded = append(expanded, filepath.Join(entry, child.Name()))
 	}
+	sort.Strings(expanded)
 	if len(expanded) == 0 {
 		return nil, fmt.Errorf("classpath directory contains no jar files: %s", entry)
 	}

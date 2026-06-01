@@ -113,3 +113,21 @@ func mustWriteFile(t *testing.T, path string) {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
 }
+
+func TestValidateConfigAcceptsNonexistentClasspathFileEntry(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := ValidateConfig(Config{
+		InputPath:      "sample.jar",
+		OutputDir:      "out",
+		JadxPath:       "/tools/jadx",
+		CfrPath:        "/tools/cfr",
+		ExtraClasspath: []string{"/nonexistent/lib.jar"},
+	}, func(name string) (string, error) { return name, nil })
+	if err != nil {
+		t.Fatalf("ValidateConfig() error = %v, want nil (nonexistent jar entries pass through)", err)
+	}
+	if !slices.Contains(cfg.ExtraClasspath, "/nonexistent/lib.jar") {
+		t.Fatalf("ExtraClasspath = %v, want /nonexistent/lib.jar preserved", cfg.ExtraClasspath)
+	}
+}

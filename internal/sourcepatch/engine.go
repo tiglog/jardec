@@ -73,7 +73,6 @@ func (e Engine) Run(ctx context.Context, cfg appcli.SourcePatchConfig) (ireport.
 	if rep.OutputJar == "" {
 		rep.OutputJar = cfg.OutputJarPath
 	}
-	rep.DryRun = rep.DryRun || false
 	rep.Compile = compileReport
 	rep.ElapsedMillis = time.Since(startedAt).Milliseconds()
 	if writeErr := writePatchReports(rep); writeErr != nil {

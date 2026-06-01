@@ -255,6 +255,50 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	}
 }
 
+func TestNewAppExpandsClasspathDirectoryFlags(t *testing.T) {
+	t.Parallel()
+
+	depsDir := filepath.Join(t.TempDir(), "deps")
+	if err := os.MkdirAll(filepath.Join(depsDir, "nested"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	for _, name := range []string{"b.jar", "a.jar", "nested/ignored.jar", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(depsDir, filepath.FromSlash(name)), []byte("x"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", name, err)
+		}
+	}
+
+	var got Config
+	app := newAppWithDeps(func(_ context.Context, cfg Config) error {
+		got = cfg
+		return nil
+	}, nil, func(name string) (string, error) {
+		return "/resolved/" + name, nil
+	}, func() (ProjectConfig, error) {
+		return ProjectConfig{}, nil
+	})
+
+	err := app.RunContext(context.Background(), []string{
+		"jardec",
+		"decompile",
+		"--input", "sample.jar",
+		"--output", "out",
+		"--classpath", depsDir,
+		"--classpath", "/deps/explicit.jar",
+	})
+	if err != nil {
+		t.Fatalf("RunContext() error = %v", err)
+	}
+
+	if want := []string{
+		filepath.Join(depsDir, "a.jar"),
+		filepath.Join(depsDir, "b.jar"),
+		"/deps/explicit.jar",
+	}; !slices.Equal(got.ExtraClasspath, want) {
+		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
+	}
+}
+
 func TestNewAppSupportsDirectCFRJarPath(t *testing.T) {
 	t.Parallel()
 
@@ -630,5 +674,86 @@ func TestPatchSourcesCommandUsesConfigFileJavacDefault(t *testing.T) {
 	}
 	if got.JavacPath != "/config/javac" {
 		t.Fatalf("JavacPath = %q, want /config/javac", got.JavacPath)
+	}
+}
+
+func TestNewAppUsesExplicitConfigFlagForDecompile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "prod.yaml")
+	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\ncfr_path: /explicit/cfr\ndecompile_classpath:\n  - /explicit/lib.jar\n"), 0o644)
+	if err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var got Config
+	app := newAppWithDeps(func(_ context.Context, cfg Config) error {
+		got = cfg
+		return nil
+	}, nil, func(name string) (string, error) {
+		return "/resolved/" + name, nil
+	}, func() (ProjectConfig, error) {
+		return ProjectConfig{}, nil
+	})
+
+	err = app.RunContext(context.Background(), []string{
+		"jardec",
+		"--config", configPath,
+		"decompile",
+		"--input", "sample.jar",
+		"--output", "out",
+	})
+	if err != nil {
+		t.Fatalf("RunContext() error = %v", err)
+	}
+
+	if got.JadxPath != "/explicit/jadx" {
+		t.Fatalf("JadxPath = %q, want /explicit/jadx", got.JadxPath)
+	}
+	if got.CfrPath != "/explicit/cfr" {
+		t.Fatalf("CfrPath = %q, want /explicit/cfr", got.CfrPath)
+	}
+	if want := []string{"/explicit/lib.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
+	}
+}
+
+func TestNewAppConfigFlagOverridesProjectConfigDiscovery(t *testing.T) {
+	t.Parallel()
+
+	// Create a config in a separate directory that should NOT be found by normal discovery.
+	explicitDir := t.TempDir()
+	configPath := filepath.Join(explicitDir, "explicit.yaml")
+	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\ncfr_path: /explicit/cfr\n"), 0o644)
+	if err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var got Config
+	app := newAppWithDeps(func(_ context.Context, cfg Config) error {
+		got = cfg
+		return nil
+	}, nil, func(name string) (string, error) {
+		return "/resolved/" + name, nil
+	}, func() (ProjectConfig, error) {
+		// Simulate the default loader returning empty config (no config.yaml found in cwd tree).
+		return ProjectConfig{}, nil
+	})
+
+	// Run from a temp dir that has no config.yaml, but use --config to point to the explicit one.
+	err = app.RunContext(context.Background(), []string{
+		"jardec",
+		"--config", configPath,
+		"decompile",
+		"--input", "sample.jar",
+		"--output", "out",
+	})
+	if err != nil {
+		t.Fatalf("RunContext() error = %v", err)
+	}
+
+	if got.JadxPath != "/explicit/jadx" {
+		t.Fatalf("JadxPath = %q, want /explicit/jadx", got.JadxPath)
 	}
 }

@@ -30,6 +30,22 @@ func loadProjectConfigFromWorkingDir() (ProjectConfig, error) {
 	return LoadProjectConfig(rootDir)
 }
 
+func LoadProjectConfigFromPath(configPath string) (ProjectConfig, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ProjectConfig{}, fmt.Errorf("config file not found: %s", configPath)
+		}
+		return ProjectConfig{}, fmt.Errorf("read config file: %w", err)
+	}
+	var cfg ProjectConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return ProjectConfig{}, fmt.Errorf("parse config file: %w", err)
+	}
+	cfg.ConfigDir = filepath.Dir(configPath)
+	return cfg, nil
+}
+
 func LoadProjectConfig(rootDir string) (ProjectConfig, error) {
 	currentDir := rootDir
 	for {

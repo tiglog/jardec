@@ -4,13 +4,15 @@ jadx_path: /path/to/jadx
 # Path to the cfr executable, wrapper script, or cfr.jar used for per-class fallback retries.
 cfr_path: /path/to/cfr
 
-# Default dependency jars for `decompile`. CFR fallback retries use:
+# Default dependency jars or directories for `decompile`. CFR fallback retries use:
 # input JAR -> decompile_classpath -> CLI --classpath entries
 #
 # Relative paths are resolved from the directory containing this config file.
+# Directory entries are expanded non-recursively to direct child *.jar files in sorted order.
+# Empty directories are rejected as invalid classpath entries.
 decompile_classpath:
-  - libs/dependency-a.jar
-  - libs/dependency-b.jar
+  - libs
+  - third_party/extra.jar
 
 # Path to the javac executable used by patch-sources.
 javac_path: /path/to/javac

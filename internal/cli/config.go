@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -84,8 +85,14 @@ func ValidateConfig(cfg Config, lookup LookupFunc) (Config, error) {
 		if entry == "" {
 			return Config{}, errors.New("classpath entry must not be empty")
 		}
-		if !slices.Contains(classpath, entry) {
-			classpath = append(classpath, entry)
+		expandedEntries, err := expandClasspathEntry(entry)
+		if err != nil {
+			return Config{}, err
+		}
+		for _, expanded := range expandedEntries {
+			if !slices.Contains(classpath, expanded) {
+				classpath = append(classpath, expanded)
+			}
 		}
 	}
 	cfg.ExtraClasspath = classpath
@@ -133,4 +140,29 @@ func ValidateConfig(cfg Config, lookup LookupFunc) (Config, error) {
 
 func isJarPath(path string) bool {
 	return strings.HasSuffix(strings.ToLower(path), ".jar")
+}
+
+func expandClasspathEntry(entry string) ([]string, error) {
+	info, err := os.Stat(entry)
+	if err != nil || !info.IsDir() {
+		return []string{entry}, nil
+	}
+
+	entries, err := os.ReadDir(entry)
+	if err != nil {
+		return nil, fmt.Errorf("read classpath directory: %w", err)
+	}
+
+	expanded := make([]string, 0, len(entries))
+	for _, child := range entries {
+		if child.IsDir() || !isJarPath(child.Name()) {
+			continue
+		}
+		expanded = append(expanded, filepath.Join(entry, child.Name()))
+	}
+	if len(expanded) == 0 {
+		return nil, fmt.Errorf("classpath directory contains no jar files: %s", entry)
+	}
+
+	return expanded, nil
 }

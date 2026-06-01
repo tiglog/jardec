@@ -102,6 +102,43 @@ func TestExecuteCFRRetriesBuildsInputJarFirstClasspath(t *testing.T) {
 	}
 }
 
+func TestExecuteCFRRetriesPreservesExpandedClasspathOrdering(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{
+		"com/example/Foo.class": "foo",
+	})
+
+	var gotSpec decompiler.CommandSpec
+	fake := &fakeCfrRunner{
+		run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+			gotSpec = spec
+			outputDir := spec.Args[2]
+			writePipelineFile(t, outputDir, "com/example/Foo.java", "class Foo {}\n")
+			return decompiler.RunResult{}, nil
+		},
+	}
+
+	_, err := ExecuteCFRRetries(context.Background(), fake, CfrRetryConfig{
+		BaseTempDir: t.TempDir(),
+		CfrPath:     "/tools/cfr",
+		InputJar:    jarPath,
+		// Simulates CLI/config entries after directory expansion plus an explicit duplicate jar.
+		ExtraClasspath: []string{"/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar", "/deps/dir/a.jar"},
+		Concurrency:    1,
+	}, []jarpkg.Class{
+		{BinaryName: "com.example.Foo", EntryPath: "com/example/Foo.class", SourcePath: "com/example/Foo.java"},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteCFRRetries() error = %v", err)
+	}
+
+	wantClasspath := strings.Join([]string{jarPath, "/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar"}, string(os.PathListSeparator))
+	if got := gotSpec.Args[4]; got != wantClasspath {
+		t.Fatalf("extraclasspath = %q, want %q", got, wantClasspath)
+	}
+}
+
 func TestValidateRetryOutputRejectsAmbiguousJavaFiles(t *testing.T) {
 	t.Parallel()
 

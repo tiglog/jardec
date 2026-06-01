@@ -16,6 +16,13 @@ type SourcePatchRunFunc func(context.Context, SourcePatchConfig) error
 
 type LookupFunc func(string) (string, error)
 
+func resolveProjectConfig(ctx *urfavecli.Context, defaultLoader func() (ProjectConfig, error)) (ProjectConfig, error) {
+	if configPath := ctx.String("config"); configPath != "" {
+		return LoadProjectConfigFromPath(configPath)
+	}
+	return defaultLoader()
+}
+
 func NewApp(run RunFunc, patchRun PatchRunFunc, sourcePatchRun SourcePatchRunFunc, lookup LookupFunc) *urfavecli.App {
 	return newAppWithAllDeps(run, patchRun, sourcePatchRun, lookup, loadProjectConfigFromWorkingDir)
 }
@@ -47,6 +54,12 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 
 	return &urfavecli.App{
 		Name: "jardec",
+		Flags: []urfavecli.Flag{
+			&urfavecli.StringFlag{
+				Name:  "config",
+				Usage: "Path to config.yaml (default: search upward from current working directory)",
+			},
+		},
 		Action: func(ctx *urfavecli.Context) error {
 			if err := urfavecli.ShowAppHelp(ctx); err != nil {
 				return err
@@ -99,7 +112,7 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 					if err != nil {
 						return err
 					}
-					projectConfig, err := loadProjectConfig()
+					projectConfig, err := resolveProjectConfig(ctx, loadProjectConfig)
 					if err != nil {
 						return err
 					}
@@ -188,7 +201,7 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 					if err != nil {
 						return err
 					}
-					projectConfig, err := loadProjectConfig()
+					projectConfig, err := resolveProjectConfig(ctx, loadProjectConfig)
 					if err != nil {
 						return err
 					}

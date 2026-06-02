@@ -1,14 +1,14 @@
 # jardec
 
-一个基于 Go 的命令行工具，用于对 JAR 执行 **jadx 优先、cfr 回退** 的反编译流程。
+一个基于 Go 的命令行工具，用于对 JAR 执行 **jadx 优先、Vineflower 回退** 的反编译流程。
 
 ## 当前能力
 
 - 用 `jadx` 对整个 JAR 做首轮反编译
 - 以 **top-level class** 作为完整性基线
 - 对可疑结果执行严格判定，包含 `JADX WARN`
-- 对失败项逐类使用 `cfr` 补偿
-- 允许 `cfr` 覆盖 retry 项的 `jadx` 输出
+- 对失败项逐类使用 Vineflower 补偿
+- 允许 Vineflower 覆盖 retry 项的 `jadx` 输出
 - 生成 `report.json` 和 `report.txt`
 - 将已编译的 `.class` 变更按 top-level class group 打回原 JAR
 - 支持 patch dry-run、显式 class group 选择和持久化 patch 报告
@@ -19,10 +19,10 @@
 
 - Go 1.24+
 - 本地可用的 `jadx`
-- 本地可用的 `cfr`
+- 本地可用的 Vineflower
 - 本地可用的 `javac`（仅 `patch-sources` 需要）
 
-## 安装 `jadx` 和 `cfr`
+## 安装 `jadx` 和 Vineflower
 
 ### 安装 `jadx`
 
@@ -38,27 +38,31 @@ jadx --version
 
 如果你的系统包管理器提供了 `jadx`，也可以直接用包管理器安装，但建议优先确认版本是否符合预期。
 
-### 安装 `cfr`
+### 安装 Vineflower
 
-`cfr` 通常以 jar 形式发布。你可以直接把 `cfr.jar` 的绝对路径写进 `config.yaml`，也可以为它准备一个本地包装脚本后再把脚本路径配置给 `jardec`。
+Vineflower 以 jar 形式发布，`jardec` 会通过 `java -jar` 直接调用它。你可以直接把 `vineflower.jar` 的绝对路径写进 `config.yaml` 或通过 `--vineflower-path` 指定。
 
-示例包装脚本：
+```bash
+# 从 GitHub Releases 下载最新版本
+# https://github.com/Vineflower/vineflower/releases
+wget https://github.com/Vineflower/vineflower/releases/download/v1.12.0/vineflower-1.12.0.jar -O /path/to/vineflower.jar
+
+# 验证
+java -jar /path/to/vineflower.jar --help
+```
+
+如果你希望 `jardec` 从 `$PATH` 自动发现 Vineflower，可以准备一个本地包装脚本：
 
 ```bash
 #!/usr/bin/env bash
-exec java -jar /path/to/cfr.jar "$@"
+exec java -jar /path/to/vineflower.jar "$@"
 ```
 
-保存为例如 `/usr/local/bin/cfr` 后，赋予可执行权限：
+保存为例如 `/usr/local/bin/vineflower` 后，赋予可执行权限：
 
 ```bash
-chmod +x /usr/local/bin/cfr
-
-# 验证
-cfr --help
+chmod +x /usr/local/bin/vineflower
 ```
-
-如果你不想放到 `PATH`，也可以直接把包装脚本或 `cfr.jar` 的绝对路径写进 `config.yaml`。
 
 ## 常用命令
 
@@ -75,7 +79,7 @@ go run ./cmd/jardec decompile \
   --input sample.jar \
   --output out \
   --jadx-path /path/to/jadx \
-  --cfr-path /path/to/cfr \
+  --vineflower-path /path/to/vineflower.jar \
   --classpath libs \
   --classpath third_party/extra.jar
 ```
@@ -85,11 +89,11 @@ go run ./cmd/jardec decompile \
 - `--input`：输入 JAR 路径
 - `--output`：输出目录
 - `--jadx-path`：`jadx` 可执行文件路径
-- `--cfr-path`：`cfr` 可执行文件或包装脚本路径
-- `--classpath`：为反编译追加依赖 JAR 或依赖目录；当前保证用于 CFR fallback retry，可重复指定
+- `--vineflower-path`：Vineflower jar 路径，`jardec` 会通过 `java -jar` 调用
+- `--classpath`：为反编译追加依赖 JAR 或依赖目录；当前保证用于 Vineflower fallback retry，可重复指定
 - `--temp-dir`：临时目录根路径
 - `--keep-temp`：保留中间工作目录
-- `--retry-concurrency`：`cfr` 回退并发数
+- `--retry-concurrency`：Vineflower 回退并发数
 
 全局参数：
 
@@ -105,7 +109,7 @@ decompile_classpath:
 
 `decompile` 的 classpath 顺序约定为：
 
-1. 输入 JAR（仅 CFR retry 自动加入）
+1. 输入 JAR（仅 Vineflower retry 自动加入）
 2. `config.yaml` 的 `decompile_classpath`
 3. 命令行上的 `--classpath`
 
@@ -120,7 +124,7 @@ decompile_classpath:
 
 如果目录里没有任何 JAR，命令会直接报错，而不是静默忽略这个目录。
 
-> 当前已保证 **CFR fallback retry** 使用上述 classpath。JADX CLI 对外部依赖的支持能力有限，因此本版本不会承诺 `--classpath` 一定会影响首轮 JADX 整包反编译。
+> 当前已保证 **Vineflower fallback retry** 使用上述 classpath。JADX CLI 对外部依赖的支持能力有限，因此本版本不会承诺 `--classpath` 一定会影响首轮 JADX 整包反编译。
 
 `jardec` 现在采用显式子命令：
 
@@ -257,7 +261,7 @@ patch_sources_classpath:
 
 ```yaml
 jadx_path: /path/to/jadx
-cfr_path: /path/to/cfr
+vineflower_path: /path/to/vineflower.jar
 decompile_classpath:
   - libs
   - third_party/extra.jar
@@ -277,7 +281,7 @@ default_retry_concurrency: 4
 说明：
 
 - `patch_sources_classpath` 仅用于 `patch-sources`
-- `decompile_classpath` 用于 `decompile` 的 CFR fallback retry
+- `decompile_classpath` 用于 `decompile` 的 Vineflower fallback retry
 - `decompile_classpath` 的每一项既可以是单个 JAR，也可以是包含多个 JAR 的目录；目录只做**非递归**展开
 - `config.yaml` 中的相对路径按该配置文件所在目录解释
 
@@ -291,14 +295,14 @@ cp config.yaml.example config.yaml
 
 反编译结果会写入目标输出目录，并附带：
 
-- `sources/`：最终 Java 源码输出目录，包含保留的 `jadx` 结果和被 `cfr` 覆盖后的 retry 项
+- `sources/`：最终 Java 源码输出目录，包含保留的 `jadx` 结果和被 Vineflower 覆盖后的 retry 项
 - `resources/`：`jadx` 产出的资源目录
 - `report.json`
 - `report.txt`
 
 `report.json` / `report.txt` 中还会包含更丰富的诊断摘要：
 
-- `retryCandidates`：进入 `cfr` 回退的 top-level class 数
+- `retryCandidates`：进入 Vineflower 回退的 top-level class 数
 - `totalElapsedMillis`：整次反编译总耗时
 - `retryElapsedMillis`：retry 阶段耗时
 - `retryOutcome`：某个 class 在回退阶段的最终结果，例如 `ambiguous_retry_output`、`invalid_retry_output`
@@ -309,7 +313,7 @@ cp config.yaml.example config.yaml
 ```text
 cmd/jardec/             CLI 入口
 internal/cli/           命令行参数与配置
-internal/decompiler/    jadx / cfr 执行层
+internal/decompiler/    jadx / Vineflower 执行层
 internal/jar/           JAR 清单与提取
 internal/merge/         回退结果覆盖合并
 internal/patch/         JAR patching 与归档重写

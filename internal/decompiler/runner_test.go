@@ -71,54 +71,51 @@ func TestRunJadxBuildsExpectedCommand(t *testing.T) {
 	}
 }
 
-func TestRunCFRBuildsExpectedCommand(t *testing.T) {
+func TestRunVineflowerBuildsExpectedCommand(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeRunner{}
-	_, err := RunCFR(context.Background(), fake, CfrConfig{
-		BinaryPath: "/tools/cfr",
-		ClassFile:  filepath.Join("tmp", "Foo.class"),
-		OutputDir:  "out",
-		Classpath:  []string{"input.jar", "/deps/a.jar"},
+	_, err := RunVineflower(context.Background(), fake, VineflowerConfig{
+		JarPath:   "/tools/vineflower.jar",
+		ClassFile: filepath.Join("tmp", "Foo.class"),
+		OutputDir: "out",
+		Classpath: []string{"input.jar", "/deps/a.jar"},
 	})
 	if err != nil {
-		t.Fatalf("RunCFR() error = %v", err)
-	}
-
-	if fake.spec.Path != "/tools/cfr" {
-		t.Fatalf("Path = %q, want /tools/cfr", fake.spec.Path)
-	}
-	want := []string{
-		filepath.Join("tmp", "Foo.class"),
-		"--outputdir", "out",
-		"--extraclasspath", strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
-	}
-	if !slices.Equal(fake.spec.Args, want) {
-		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
-	}
-}
-
-func TestRunCFRSupportsDirectJarPath(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeRunner{}
-	_, err := RunCFR(context.Background(), fake, CfrConfig{
-		BinaryPath: "/tools/cfr.jar",
-		ClassFile:  filepath.Join("tmp", "Foo.class"),
-		OutputDir:  "out",
-		Classpath:  []string{"input.jar", "/deps/a.jar"},
-	})
-	if err != nil {
-		t.Fatalf("RunCFR() error = %v", err)
+		t.Fatalf("RunVineflower() error = %v", err)
 	}
 
 	if fake.spec.Path != "java" {
 		t.Fatalf("Path = %q, want java", fake.spec.Path)
 	}
 	want := []string{
-		"-jar", "/tools/cfr.jar", filepath.Join("tmp", "Foo.class"),
-		"--outputdir", "out",
-		"--extraclasspath", strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
+		"-jar", "/tools/vineflower.jar",
+		filepath.Join("tmp", "Foo.class"),
+		"out",
+		"--extraclasspath=" + strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
+	}
+	if !slices.Equal(fake.spec.Args, want) {
+		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
+	}
+}
+
+func TestRunVineflowerOmitsClasspathWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeRunner{}
+	_, err := RunVineflower(context.Background(), fake, VineflowerConfig{
+		JarPath:   "/tools/vineflower.jar",
+		ClassFile: filepath.Join("tmp", "Foo.class"),
+		OutputDir: "out",
+	})
+	if err != nil {
+		t.Fatalf("RunVineflower() error = %v", err)
+	}
+
+	want := []string{
+		"-jar", "/tools/vineflower.jar",
+		filepath.Join("tmp", "Foo.class"),
+		"out",
 	}
 	if !slices.Equal(fake.spec.Args, want) {
 		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)

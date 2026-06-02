@@ -13,7 +13,7 @@ const DefaultConfigFileName = "config.yaml"
 
 type ProjectConfig struct {
 	JadxPath                string   `yaml:"jadx_path"`
-	CfrPath                 string   `yaml:"cfr_path"`
+	VineflowerPath          string   `yaml:"vineflower_path"`
 	JavacPath               string   `yaml:"javac_path"`
 	DecompileClasspath      []string `yaml:"decompile_classpath"`
 	PatchSourcesClasspath   []string `yaml:"patch_sources_classpath"`

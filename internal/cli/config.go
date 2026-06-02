@@ -14,16 +14,16 @@ import (
 )
 
 const (
-	defaultJadxBinary  = "jadx"
-	defaultCfrBinary   = "cfr"
-	defaultJavacBinary = "javac"
+	defaultJadxBinary        = "jadx"
+	defaultVineflowerBinary = "vineflower"
+	defaultJavacBinary      = "javac"
 )
 
 type Config struct {
 	InputPath        string
 	OutputDir        string
 	JadxPath         string
-	CfrPath          string
+	VineflowerPath   string
 	ExtraClasspath   []string
 	TempDir          string
 	KeepTemp         bool
@@ -35,7 +35,7 @@ func ConfigFromContext(ctx *urfavecli.Context) (Config, error) {
 		InputPath:        ctx.String("input"),
 		OutputDir:        ctx.String("output"),
 		JadxPath:         ctx.String("jadx-path"),
-		CfrPath:          ctx.String("cfr-path"),
+		VineflowerPath:   ctx.String("vineflower-path"),
 		ExtraClasspath:   ctx.StringSlice("classpath"),
 		TempDir:          ctx.String("temp-dir"),
 		KeepTemp:         ctx.Bool("keep-temp"),
@@ -49,8 +49,8 @@ func ApplyProjectConfig(cfg Config, projectCfg ProjectConfig) Config {
 	if cfg.JadxPath == "" {
 		cfg.JadxPath = projectCfg.JadxPath
 	}
-	if cfg.CfrPath == "" {
-		cfg.CfrPath = projectCfg.CfrPath
+	if cfg.VineflowerPath == "" {
+		cfg.VineflowerPath = projectCfg.VineflowerPath
 	}
 	classpath := make([]string, 0, len(projectCfg.DecompileClasspath)+len(cfg.ExtraClasspath))
 	for _, entry := range projectCfg.DecompileClasspath {
@@ -118,22 +118,22 @@ func ValidateConfig(cfg Config, lookup LookupFunc) (Config, error) {
 		cfg.JadxPath = jadxTarget
 	}
 
-	cfrTarget := cfg.CfrPath
-	if cfrTarget == "" {
-		cfrTarget = defaultCfrBinary
+	vfTarget := cfg.VineflowerPath
+	if vfTarget == "" {
+		vfTarget = defaultVineflowerBinary
 	}
-	if isJarPath(cfrTarget) {
-		if _, err := os.Stat(cfrTarget); err != nil {
-			return Config{}, fmt.Errorf("resolve cfr jar: %w", err)
-		}
-		if _, err := lookup("java"); err != nil {
-			return Config{}, fmt.Errorf("resolve java runtime: %w", err)
-		}
-	} else if _, err := lookup(cfrTarget); err != nil {
-		return Config{}, fmt.Errorf("resolve cfr binary: %w", err)
+	if _, err := lookup("java"); err != nil {
+		return Config{}, fmt.Errorf("resolve java runtime: %w", err)
 	}
-	if cfg.CfrPath == "" {
-		cfg.CfrPath = cfrTarget
+	if isJarPath(vfTarget) {
+		if _, err := os.Stat(vfTarget); err != nil {
+			return Config{}, fmt.Errorf("resolve vineflower jar: %w", err)
+		}
+	} else if _, err := lookup(vfTarget); err != nil {
+		return Config{}, fmt.Errorf("resolve vineflower binary: %w", err)
+	}
+	if cfg.VineflowerPath == "" {
+		cfg.VineflowerPath = vfTarget
 	}
 
 	return cfg, nil

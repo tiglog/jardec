@@ -20,7 +20,7 @@ type Config struct {
 	InputPath        string
 	OutputDir        string
 	JadxPath         string
-	CfrPath          string
+	VineflowerPath   string
 	ExtraClasspath   []string
 	TempDir          string
 	KeepTemp         bool
@@ -29,7 +29,7 @@ type Config struct {
 
 type Engine struct {
 	JadxRunner decompiler.Runner
-	CfrRunner  decompiler.Runner
+	VineflowerRunner decompiler.Runner
 }
 
 func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
@@ -37,8 +37,8 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	if e.JadxRunner == nil {
 		e.JadxRunner = decompiler.CommandRunner{}
 	}
-	if e.CfrRunner == nil {
-		e.CfrRunner = decompiler.CommandRunner{}
+	if e.VineflowerRunner == nil {
+		e.VineflowerRunner = decompiler.CommandRunner{}
 	}
 	if cfg.RetryConcurrency <= 0 {
 		cfg.RetryConcurrency = 1
@@ -99,9 +99,9 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	}
 
 	retryStartedAt := time.Now()
-	retryResults, err := ExecuteCFRRetries(ctx, e.CfrRunner, CfrRetryConfig{
+	retryResults, err := ExecuteVineflowerRetries(ctx, e.VineflowerRunner, VineflowerRetryConfig{
 		BaseTempDir:    cfg.TempDir,
-		CfrPath:        cfg.CfrPath,
+		VineflowerPath: cfg.VineflowerPath,
 		InputJar:       cfg.InputPath,
 		ExtraClasspath: cfg.ExtraClasspath,
 		Concurrency:    cfg.RetryConcurrency,
@@ -123,8 +123,8 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 
 		if result.Err != nil {
 			classReport.Status = ireport.StatusFailed
-			classReport.RetryOutcome = "cfr_execution_failed"
-			classReport.FailureReason = "cfr_execution_failed"
+			classReport.RetryOutcome = "vineflower_execution_failed"
+			classReport.FailureReason = "vineflower_execution_failed"
 			classReports[result.Class.BinaryName] = classReport
 			continue
 		}
@@ -146,7 +146,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 		}
 
 		classReport.Status = ireport.StatusSucceeded
-		classReport.Origin = ireport.OriginCFR
+		classReport.Origin = ireport.OriginVineflower
 		classReports[result.Class.BinaryName] = classReport
 	}
 
@@ -164,8 +164,8 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 		switch {
 		case classReport.Status == ireport.StatusSucceeded && classReport.Origin == ireport.OriginJADX:
 			rep.JadxSucceeded++
-		case classReport.Status == ireport.StatusSucceeded && classReport.Origin == ireport.OriginCFR:
-			rep.CfrRecovered++
+		case classReport.Status == ireport.StatusSucceeded && classReport.Origin == ireport.OriginVineflower:
+			rep.VineflowerRecovered++
 		case classReport.Status == ireport.StatusFailed:
 			rep.FinalFailed++
 		}

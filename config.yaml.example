@@ -1,10 +1,11 @@
 ## Path to the jadx executable used for the initial full-JAR decompilation pass.
 #jadx_path: /path/to/jadx
 #
-## Path to the cfr executable, wrapper script, or cfr.jar used for per-class fallback retries.
-#cfr_path: /path/to/cfr
+## Path to the Vineflower jar used for per-class fallback retries.
+## jardec invokes it as: java -jar <vineflower_path> <class> <outputdir> --extraclasspath=<cp>
+#vineflower_path: /path/to/vineflower.jar
 #
-## Default dependency jars or directories for `decompile`. CFR fallback retries use:
+## Default dependency jars or directories for `decompile`. Vineflower fallback retries use:
 ## input JAR -> decompile_classpath -> CLI --classpath entries
 ##
 ## Relative paths are resolved from the directory containing this config file.
@@ -22,5 +23,5 @@
 #  - libs/dependency-a.jar
 #  - libs/dependency-b.jar
 #
-## Default number of concurrent CFR retry workers when --retry-concurrency is not provided.
+## Default number of concurrent Vineflower retry workers when --retry-concurrency is not provided.
 default_retry_concurrency: 4

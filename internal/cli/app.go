@@ -69,7 +69,7 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 		Commands: []*urfavecli.Command{
 			{
 				Name:  "decompile",
-				Usage: "Decompile a JAR with jadx-first and cfr-fallback recovery",
+				Usage: "Decompile a JAR with jadx-first and vineflower-fallback recovery",
 				Flags: []urfavecli.Flag{
 					&urfavecli.StringFlag{
 						Name:    "input",
@@ -86,12 +86,12 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 						Usage: "Path to the jadx executable",
 					},
 					&urfavecli.StringFlag{
-						Name:  "cfr-path",
-						Usage: "Path to the cfr executable, wrapper script, or jar file",
+						Name:  "vineflower-path",
+						Usage: "Path to the vineflower jar file",
 					},
 					&urfavecli.StringSliceFlag{
 						Name:  "classpath",
-						Usage: "Additional dependency jars for decompilation; guaranteed to be used by CFR fallback retries (repeatable)",
+						Usage: "Additional dependency jars for decompilation; guaranteed to be used by Vineflower fallback retries (repeatable)",
 					},
 					&urfavecli.StringFlag{
 						Name:  "temp-dir",
@@ -103,7 +103,7 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 					},
 					&urfavecli.IntFlag{
 						Name:        "retry-concurrency",
-						Usage:       "Maximum concurrent cfr retry workers",
+						Usage:       "Maximum concurrent vineflower retry workers",
 						DefaultText: fmt.Sprintf("%d (CPU count)", runtime.NumCPU()),
 					},
 				},

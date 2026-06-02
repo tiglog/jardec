@@ -22,7 +22,7 @@ func main() {
 			InputPath:        cfg.InputPath,
 			OutputDir:        cfg.OutputDir,
 			JadxPath:         cfg.JadxPath,
-			CfrPath:          cfg.CfrPath,
+			VineflowerPath:   cfg.VineflowerPath,
 			ExtraClasspath:   cfg.ExtraClasspath,
 			TempDir:          cfg.TempDir,
 			KeepTemp:         cfg.KeepTemp,

@@ -19,7 +19,7 @@ type Origin string
 
 const (
 	OriginJADX Origin = "jadx"
-	OriginCFR  Origin = "cfr"
+	OriginVineflower Origin = "vineflower"
 )
 
 type ClassResult struct {
@@ -36,7 +36,7 @@ type Report struct {
 	Jar                  string        `json:"jar"`
 	TotalTopLevelClasses int           `json:"totalTopLevelClasses"`
 	JadxSucceeded        int           `json:"jadxSucceeded"`
-	CfrRecovered         int           `json:"cfrRecovered"`
+	VineflowerRecovered  int           `json:"vineflowerRecovered"`
 	FinalFailed          int           `json:"finalFailed"`
 	RetryCandidates      int           `json:"retryCandidates"`
 	TotalElapsedMillis   int64         `json:"totalElapsedMillis"`
@@ -123,7 +123,7 @@ func RenderText(rep Report) string {
 		fmt.Sprintf("JAR: %s", rep.Jar),
 		fmt.Sprintf("Total top-level classes: %d", rep.TotalTopLevelClasses),
 		fmt.Sprintf("JADX succeeded: %d", rep.JadxSucceeded),
-		fmt.Sprintf("CFR recovered: %d", rep.CfrRecovered),
+		fmt.Sprintf("Vineflower recovered: %d", rep.VineflowerRecovered),
 		fmt.Sprintf("Final failed: %d", rep.FinalFailed),
 		fmt.Sprintf("Retry candidates: %d", rep.RetryCandidates),
 		fmt.Sprintf("Total elapsed: %s", formatElapsedMillis(rep.TotalElapsedMillis)),

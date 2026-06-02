@@ -74,11 +74,11 @@ type JadxConfig struct {
 	OutputDir  string
 }
 
-type CfrConfig struct {
-	BinaryPath string
-	ClassFile  string
-	OutputDir  string
-	Classpath  []string
+type VineflowerConfig struct {
+	JarPath   string
+	ClassFile string
+	OutputDir string
+	Classpath []string
 }
 
 func RunJadx(ctx context.Context, runner Runner, cfg JadxConfig) (RunResult, error) {
@@ -88,20 +88,13 @@ func RunJadx(ctx context.Context, runner Runner, cfg JadxConfig) (RunResult, err
 	})
 }
 
-func RunCFR(ctx context.Context, runner Runner, cfg CfrConfig) (RunResult, error) {
-	args := []string{cfg.ClassFile, "--outputdir", cfg.OutputDir}
+func RunVineflower(ctx context.Context, runner Runner, cfg VineflowerConfig) (RunResult, error) {
+	args := []string{"-jar", cfg.JarPath, cfg.ClassFile, cfg.OutputDir}
 	if len(cfg.Classpath) > 0 {
-		args = append(args, "--extraclasspath", strings.Join(cfg.Classpath, string(filepath.ListSeparator)))
+		args = append(args, "--extraclasspath="+strings.Join(cfg.Classpath, string(filepath.ListSeparator)))
 	}
-	if strings.HasSuffix(strings.ToLower(cfg.BinaryPath), ".jar") {
-		return runner.Run(ctx, CommandSpec{
-			Path: "java",
-			Args: append([]string{"-jar", cfg.BinaryPath}, args...),
-		})
-	}
-
 	return runner.Run(ctx, CommandSpec{
-		Path: cfg.BinaryPath,
+		Path: "java",
 		Args: args,
 	})
 }

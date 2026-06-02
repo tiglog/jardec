@@ -13,13 +13,13 @@ func TestWriteJSONSerializesSummaryAndClasses(t *testing.T) {
 		Jar:                  "sample.jar",
 		TotalTopLevelClasses: 2,
 		JadxSucceeded:        1,
-		VineflowerRecovered:  1,
+		ProcyonRecovered:  1,
 		FinalFailed:          0,
 		Classes: []ClassResult{
 			{
 				BinaryName:   "com.example.Foo",
 				Status:       StatusSucceeded,
-				Origin:       OriginVineflower,
+				Origin:       OriginProcyon,
 				RetryReasons: []string{"jadx_warn"},
 			},
 		},
@@ -34,9 +34,9 @@ func TestWriteJSONSerializesSummaryAndClasses(t *testing.T) {
 	for _, want := range []string{
 		`"jar":"sample.jar"`,
 		`"jadxSucceeded":1`,
-		`"vineflowerRecovered":1`,
+		`"procyonRecovered":1`,
 		`"binaryName":"com.example.Foo"`,
-		`"origin":"vineflower"`,
+		`"origin":"procyon"`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("json = %s, want substring %s", text, want)
@@ -51,7 +51,7 @@ func TestRenderTextSummarizesCoverage(t *testing.T) {
 		Jar:                  "sample.jar",
 		TotalTopLevelClasses: 3,
 		JadxSucceeded:        1,
-		VineflowerRecovered:  1,
+		ProcyonRecovered:  1,
 		FinalFailed:          1,
 		RetryCandidates:      2,
 		TotalElapsedMillis:   15,
@@ -72,7 +72,7 @@ func TestRenderTextSummarizesCoverage(t *testing.T) {
 		"JAR: sample.jar",
 		"Total top-level classes: 3",
 		"JADX succeeded: 1",
-		"Vineflower recovered: 1",
+		"Procyon recovered: 1",
 		"Final failed: 1",
 		"Retry candidates: 2",
 		"Total elapsed:",

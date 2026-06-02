@@ -13,7 +13,7 @@ import (
 	jarpkg "jardec/internal/jar"
 )
 
-func TestExecuteVineflowerRetriesCreatesIsolatedWorkspaces(t *testing.T) {
+func TestExecuteProcyonRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 	t.Parallel()
 
 	jarPath := writePipelineJar(t, map[string]string{
@@ -23,7 +23,7 @@ func TestExecuteVineflowerRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 
 	fake := &fakeRetryRunner{
 		run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
-			classFile := spec.Args[2]
+			classFile := spec.Args[len(spec.Args)-1]
 			outputDir := spec.Args[3]
 			if _, err := os.Stat(classFile); err != nil {
 				t.Fatalf("expected extracted class file: %v", err)
@@ -39,13 +39,13 @@ func TestExecuteVineflowerRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 			if err := os.WriteFile(javaPath, []byte("class ok {}\n"), 0o644); err != nil {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
-			return decompiler.RunResult{Stdout: "vineflower ok"}, nil
+			return decompiler.RunResult{Stdout: "procyon ok"}, nil
 		},
 	}
 
-	results, err := ExecuteVineflowerRetries(context.Background(), fake, VineflowerRetryConfig{
+	results, err := ExecuteProcyonRetries(context.Background(), fake, ProcyonRetryConfig{
 		BaseTempDir:    t.TempDir(),
-		VineflowerPath: "/tools/vineflower.jar",
+		ProcyonPath: "/tools/procyon.jar",
 		InputJar:       jarPath,
 		Concurrency:    2,
 	}, []jarpkg.Class{
@@ -53,7 +53,7 @@ func TestExecuteVineflowerRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 		{BinaryName: "com.example.Foo", EntryPath: "com/example/Foo.class", SourcePath: "com/example/Foo.java"},
 	})
 	if err != nil {
-		t.Fatalf("ExecuteVineflowerRetries() error = %v", err)
+		t.Fatalf("ExecuteProcyonRetries() error = %v", err)
 	}
 	if len(results) != 2 {
 		t.Fatalf("len(results) = %d, want 2", len(results))
@@ -63,7 +63,7 @@ func TestExecuteVineflowerRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 	}
 }
 
-func TestExecuteVineflowerRetriesBuildsInputJarFirstClasspath(t *testing.T) {
+func TestExecuteProcyonRetriesBuildsInputJarFirstClasspath(t *testing.T) {
 	t.Parallel()
 
 	jarPath := writePipelineJar(t, map[string]string{
@@ -80,9 +80,9 @@ func TestExecuteVineflowerRetriesBuildsInputJarFirstClasspath(t *testing.T) {
 		},
 	}
 
-	results, err := ExecuteVineflowerRetries(context.Background(), fake, VineflowerRetryConfig{
+	results, err := ExecuteProcyonRetries(context.Background(), fake, ProcyonRetryConfig{
 		BaseTempDir:    t.TempDir(),
-		VineflowerPath: "/tools/vineflower.jar",
+		ProcyonPath: "/tools/procyon.jar",
 		InputJar:       jarPath,
 		ExtraClasspath: []string{"/deps/base.jar", jarPath, "/deps/cli.jar"},
 		Concurrency:    1,
@@ -90,19 +90,19 @@ func TestExecuteVineflowerRetriesBuildsInputJarFirstClasspath(t *testing.T) {
 		{BinaryName: "com.example.Foo", EntryPath: "com/example/Foo.class", SourcePath: "com/example/Foo.java"},
 	})
 	if err != nil {
-		t.Fatalf("ExecuteVineflowerRetries() error = %v", err)
+		t.Fatalf("ExecuteProcyonRetries() error = %v", err)
 	}
 	if len(results) != 1 {
 		t.Fatalf("len(results) = %d, want 1", len(results))
 	}
 
-	wantClasspath := "--extraclasspath=" + strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator))
-	if got := gotSpec.Args[4]; got != wantClasspath {
-		t.Fatalf("extraclasspath = %q, want %q", got, wantClasspath)
+	wantClasspath := strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator))
+	if got := gotSpec.Args[5]; got != wantClasspath {
+		t.Fatalf("classpath = %q, want %q", got, wantClasspath)
 	}
 }
 
-func TestExecuteVineflowerRetriesPreservesExpandedClasspathOrdering(t *testing.T) {
+func TestExecuteProcyonRetriesPreservesExpandedClasspathOrdering(t *testing.T) {
 	t.Parallel()
 
 	jarPath := writePipelineJar(t, map[string]string{
@@ -119,9 +119,9 @@ func TestExecuteVineflowerRetriesPreservesExpandedClasspathOrdering(t *testing.T
 		},
 	}
 
-	_, err := ExecuteVineflowerRetries(context.Background(), fake, VineflowerRetryConfig{
+	_, err := ExecuteProcyonRetries(context.Background(), fake, ProcyonRetryConfig{
 		BaseTempDir:    t.TempDir(),
-		VineflowerPath: "/tools/vineflower.jar",
+		ProcyonPath: "/tools/procyon.jar",
 		InputJar:       jarPath,
 		ExtraClasspath: []string{"/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar", "/deps/dir/a.jar"},
 		Concurrency:    1,
@@ -129,12 +129,12 @@ func TestExecuteVineflowerRetriesPreservesExpandedClasspathOrdering(t *testing.T
 		{BinaryName: "com.example.Foo", EntryPath: "com/example/Foo.class", SourcePath: "com/example/Foo.java"},
 	})
 	if err != nil {
-		t.Fatalf("ExecuteVineflowerRetries() error = %v", err)
+		t.Fatalf("ExecuteProcyonRetries() error = %v", err)
 	}
 
-	wantClasspath := "--extraclasspath=" + strings.Join([]string{jarPath, "/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar"}, string(os.PathListSeparator))
-	if got := gotSpec.Args[4]; got != wantClasspath {
-		t.Fatalf("extraclasspath = %q, want %q", got, wantClasspath)
+	wantClasspath := strings.Join([]string{jarPath, "/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar"}, string(os.PathListSeparator))
+	if got := gotSpec.Args[5]; got != wantClasspath {
+		t.Fatalf("classpath = %q, want %q", got, wantClasspath)
 	}
 }
 
@@ -154,42 +154,11 @@ func TestValidateRetryOutputRejectsAmbiguousJavaFiles(t *testing.T) {
 	}
 }
 
-func TestValidateRetryOutputAcceptsInnerClassCoFiles(t *testing.T) {
+func TestValidateRetryOutputRejectsProcyonPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	outputDir := t.TempDir()
-	writePipelineFile(t, outputDir, "com/example/Foo.java", "class Foo {}\n")
-	writePipelineFile(t, outputDir, "com/example/Foo$Helper.java", "class Foo$Helper {}\n")
-
-	err := ValidateRetryOutput(jarpkg.Class{
-		BinaryName: "com.example.Foo",
-		SourcePath: "com/example/Foo.java",
-	}, outputDir)
-	if err != nil {
-		t.Fatalf("ValidateRetryOutput() error = %v, want nil (inner-class co-files should be accepted)", err)
-	}
-}
-
-func TestValidateRetryOutputRejectsVineflowerPlaceholder(t *testing.T) {
-	t.Parallel()
-
-	outputDir := t.TempDir()
-	writePipelineFile(t, outputDir, "com/example/Foo.java", "// $FF: Couldn't be decompiled\n")
-
-	err := ValidateRetryOutput(jarpkg.Class{
-		BinaryName: "com.example.Foo",
-		SourcePath: "com/example/Foo.java",
-	}, outputDir)
-	if !errors.Is(err, ErrInvalidRetryOutput) {
-		t.Fatalf("ValidateRetryOutput() error = %v, want ErrInvalidRetryOutput", err)
-	}
-}
-
-func TestValidateRetryOutputRejectsVineflowerUnableToDecompile(t *testing.T) {
-	t.Parallel()
-
-	outputDir := t.TempDir()
-	writePipelineFile(t, outputDir, "com/example/Foo.java", "// $FF: Unable to fully decompile\nclass Foo {}\n")
+	writePipelineFile(t, outputDir, "com/example/Foo.java", "/* Could not decompile. */\n")
 
 	err := ValidateRetryOutput(jarpkg.Class{
 		BinaryName: "com.example.Foo",

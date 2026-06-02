@@ -13,7 +13,7 @@ func TestLoadProjectConfigReadsYAMLFile(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, DefaultConfigFileName)
-	err := os.WriteFile(path, []byte("jadx_path: /tools/jadx\nvineflower_path: /tools/vineflower.jar\njavac_path: /tools/javac\ndecompile_classpath:\n  - deps/runtime.jar\n  - /deps/external.jar\npatch_sources_classpath:\n  - /deps/base.jar\n  - /deps/extra.jar\ndefault_retry_concurrency: 9\n"), 0o644)
+	err := os.WriteFile(path, []byte("jadx_path: /tools/jadx\nprocyon_path: /tools/procyon.jar\njavac_path: /tools/javac\ndecompile_classpath:\n  - deps/runtime.jar\n  - /deps/external.jar\npatch_sources_classpath:\n  - /deps/base.jar\n  - /deps/extra.jar\ndefault_retry_concurrency: 9\n"), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -26,8 +26,8 @@ func TestLoadProjectConfigReadsYAMLFile(t *testing.T) {
 	if cfg.JadxPath != "/tools/jadx" {
 		t.Fatalf("JadxPath = %q, want /tools/jadx", cfg.JadxPath)
 	}
-	if cfg.VineflowerPath != "/tools/vineflower.jar" {
-		t.Fatalf("VineflowerPath = %q, want /tools/vineflower.jar", cfg.VineflowerPath)
+	if cfg.ProcyonPath != "/tools/procyon.jar" {
+		t.Fatalf("ProcyonPath = %q, want /tools/procyon.jar", cfg.ProcyonPath)
 	}
 	if cfg.JavacPath != "/tools/javac" {
 		t.Fatalf("JavacPath = %q, want /tools/javac", cfg.JavacPath)
@@ -53,7 +53,7 @@ func TestLoadProjectConfigMissingFileUsesEmptyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadProjectConfig() error = %v", err)
 	}
-	if cfg.JadxPath != "" || cfg.VineflowerPath != "" || cfg.JavacPath != "" || len(cfg.DecompileClasspath) != 0 || len(cfg.PatchSourcesClasspath) != 0 || cfg.DefaultRetryConcurrency != 0 || cfg.ConfigDir != "" {
+	if cfg.JadxPath != "" || cfg.ProcyonPath != "" || cfg.JavacPath != "" || len(cfg.DecompileClasspath) != 0 || len(cfg.PatchSourcesClasspath) != 0 || cfg.DefaultRetryConcurrency != 0 || cfg.ConfigDir != "" {
 		t.Fatalf("config = %#v, want zero-value fields", cfg)
 	}
 }
@@ -89,7 +89,7 @@ func TestLoadProjectConfigFromPathReadsExplicitFile(t *testing.T) {
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "custom.yaml")
-	err := os.WriteFile(configPath, []byte("jadx_path: /custom/jadx\nvineflower_path: /custom/vineflower\ndecompile_classpath:\n  - /custom/lib.jar\n"), 0o644)
+	err := os.WriteFile(configPath, []byte("jadx_path: /custom/jadx\nprocyon_path: /custom/procyon\ndecompile_classpath:\n  - /custom/lib.jar\n"), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -102,8 +102,8 @@ func TestLoadProjectConfigFromPathReadsExplicitFile(t *testing.T) {
 	if cfg.JadxPath != "/custom/jadx" {
 		t.Fatalf("JadxPath = %q, want /custom/jadx", cfg.JadxPath)
 	}
-	if cfg.VineflowerPath != "/custom/vineflower" {
-		t.Fatalf("VineflowerPath = %q, want /custom/vineflower", cfg.VineflowerPath)
+	if cfg.ProcyonPath != "/custom/procyon" {
+		t.Fatalf("ProcyonPath = %q, want /custom/procyon", cfg.ProcyonPath)
 	}
 	if want := []string{"/custom/lib.jar"}; !slices.Equal(cfg.DecompileClasspath, want) {
 		t.Fatalf("DecompileClasspath = %v, want %v", cfg.DecompileClasspath, want)

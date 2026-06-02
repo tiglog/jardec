@@ -19,9 +19,9 @@ var (
 	ErrInvalidRetryOutput   = errors.New("invalid retry output")
 )
 
-type VineflowerRetryConfig struct {
+type ProcyonRetryConfig struct {
 	BaseTempDir    string
-	VineflowerPath string
+	ProcyonPath string
 	InputJar       string
 	ExtraClasspath []string
 	Concurrency    int
@@ -35,7 +35,7 @@ type RetryResult struct {
 	Err         error
 }
 
-func ExecuteVineflowerRetries(ctx context.Context, runner decompiler.Runner, cfg VineflowerRetryConfig, classes []jarpkg.Class) ([]RetryResult, error) {
+func ExecuteProcyonRetries(ctx context.Context, runner decompiler.Runner, cfg ProcyonRetryConfig, classes []jarpkg.Class) ([]RetryResult, error) {
 	if cfg.Concurrency <= 0 {
 		cfg.Concurrency = 1
 	}
@@ -73,8 +73,8 @@ func ExecuteVineflowerRetries(ctx context.Context, runner decompiler.Runner, cfg
 	return results, nil
 }
 
-func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg VineflowerRetryConfig, class jarpkg.Class) RetryResult {
-	rootDir, err := os.MkdirTemp(cfg.BaseTempDir, "vf-*")
+func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg ProcyonRetryConfig, class jarpkg.Class) RetryResult {
+	rootDir, err := os.MkdirTemp(cfg.BaseTempDir, "procyon-*")
 	if err != nil {
 		return RetryResult{Class: class, Err: err}
 	}
@@ -89,8 +89,8 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg Vinef
 		return RetryResult{Class: class, RootDir: rootDir, Err: err}
 	}
 
-	diagnostics, err := decompiler.RunVineflower(ctx, runner, decompiler.VineflowerConfig{
-		JarPath:   cfg.VineflowerPath,
+	diagnostics, err := decompiler.RunProcyon(ctx, runner, decompiler.ProcyonConfig{
+		JarPath:   cfg.ProcyonPath,
 		ClassFile: classFile,
 		OutputDir: outputDir,
 		Classpath: buildRetryClasspath(cfg.InputJar, cfg.ExtraClasspath),
@@ -151,10 +151,7 @@ func ValidateRetryOutput(class jarpkg.Class, outputDir string) error {
 	}
 
 	for _, jf := range javaFiles {
-		if jf == filepath.Clean(expectedPath) {
-			continue
-		}
-		if !isInnerClassFile(jf, expectedPath) {
+		if jf != filepath.Clean(expectedPath) {
 			return ErrAmbiguousRetryOutput
 		}
 	}
@@ -162,26 +159,12 @@ func ValidateRetryOutput(class jarpkg.Class, outputDir string) error {
 	return nil
 }
 
-func isInnerClassFile(javaPath, expectedPath string) bool {
-	if javaPath == expectedPath {
-		return false
-	}
-	expectedBase := expectedPath[:len(expectedPath)-len(".java")]
-	javaBase := javaPath[:len(javaPath)-len(".java")]
-	if !strings.HasPrefix(javaBase, expectedBase) {
-		return false
-	}
-	suffix := javaBase[len(expectedBase):]
-	return len(suffix) > 0 && suffix[0] == '$'
-}
-
 func hasRetryPlaceholderFailure(content string) bool {
 	placeholders := []string{
 		"JADX ERROR",
 		"Method not decompiled",
 		"Code decompiled incorrectly",
-		"// $FF: Couldn't be decompiled",
-		"// $FF: Unable to fully decompile",
+		"/* Could not decompile. */",
 	}
 	for _, marker := range placeholders {
 		if strings.Contains(content, marker) {

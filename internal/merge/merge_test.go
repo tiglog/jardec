@@ -15,7 +15,7 @@ func TestApplyRecoveryReplacesExistingOutput(t *testing.T) {
 	retryDir := t.TempDir()
 
 	writeMergeFile(t, finalDir, "sources/com/example/Foo.java", "jadx\n")
-	writeMergeFile(t, retryDir, "com/example/Foo.java", "vineflower\n")
+	writeMergeFile(t, retryDir, "com/example/Foo.java", "procyon\n")
 
 	err := ApplyRecovery(filepath.Join(finalDir, "sources"), jarpkg.Class{
 		BinaryName: "com.example.Foo",
@@ -29,8 +29,8 @@ func TestApplyRecoveryReplacesExistingOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	if string(content) != "vineflower\n" {
-		t.Fatalf("content = %q, want vineflower", string(content))
+	if string(content) != "procyon\n" {
+		t.Fatalf("content = %q, want procyon", string(content))
 	}
 }
 

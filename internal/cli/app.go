@@ -69,7 +69,7 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 		Commands: []*urfavecli.Command{
 			{
 				Name:  "decompile",
-				Usage: "Decompile a JAR with jadx-first and vineflower-fallback recovery",
+				Usage: "Decompile a JAR with jadx-first and procyon-fallback recovery",
 				Flags: []urfavecli.Flag{
 					&urfavecli.StringFlag{
 						Name:    "input",
@@ -86,12 +86,12 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 						Usage: "Path to the jadx executable",
 					},
 					&urfavecli.StringFlag{
-						Name:  "vineflower-path",
-						Usage: "Path to the vineflower jar file",
+						Name:  "procyon-path",
+						Usage: "Path to the procyon jar file",
 					},
 					&urfavecli.StringSliceFlag{
 						Name:  "classpath",
-						Usage: "Additional dependency jars for decompilation; guaranteed to be used by Vineflower fallback retries (repeatable)",
+						Usage: "Additional dependency jars for decompilation; guaranteed to be used by Procyon fallback retries (repeatable)",
 					},
 					&urfavecli.StringFlag{
 						Name:  "temp-dir",
@@ -103,7 +103,7 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 					},
 					&urfavecli.IntFlag{
 						Name:        "retry-concurrency",
-						Usage:       "Maximum concurrent vineflower retry workers",
+						Usage:       "Maximum concurrent procyon retry workers",
 						DefaultText: fmt.Sprintf("%d (CPU count)", runtime.NumCPU()),
 					},
 				},

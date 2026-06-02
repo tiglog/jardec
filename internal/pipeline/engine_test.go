@@ -31,7 +31,7 @@ func TestEngineRecoversJadxWarnAndWritesReports(t *testing.T) {
 				return decompiler.RunResult{}, nil
 			},
 		},
-		VineflowerRunner: &scriptedRunner{
+		ProcyonRunner: &scriptedRunner{
 			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
 				outputDir := spec.Args[3]
 				writePipelineFile(t, outputDir, "com/example/Foo.java", "class Foo { int recovered = 1; }\n")
@@ -45,13 +45,13 @@ func TestEngineRecoversJadxWarnAndWritesReports(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        outputDir,
 		JadxPath:         "/tools/jadx",
-		VineflowerPath:          "/tools/vineflower.jar",
+		ProcyonPath:          "/tools/procyon.jar",
 		RetryConcurrency: 2,
 	})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	if rep.JadxSucceeded != 1 || rep.VineflowerRecovered != 1 || rep.FinalFailed != 0 {
+	if rep.JadxSucceeded != 1 || rep.ProcyonRecovered != 1 || rep.FinalFailed != 0 {
 		t.Fatalf("report counts = %+v", rep)
 	}
 	if rep.RetryCandidates != 1 {
@@ -66,7 +66,7 @@ func TestEngineRecoversJadxWarnAndWritesReports(t *testing.T) {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
 	if !strings.Contains(string(content), "recovered = 1") {
-		t.Fatalf("final Foo.java = %q, want vineflower content", string(content))
+		t.Fatalf("final Foo.java = %q, want procyon content", string(content))
 	}
 	if _, err := os.Stat(filepath.Join(outputDir, "com/example/Foo.java")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected no top-level java output outside sources/, got err=%v", err)
@@ -80,8 +80,8 @@ func TestEngineRecoversJadxWarnAndWritesReports(t *testing.T) {
 	if err := json.Unmarshal(reportData, &written); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if written.VineflowerRecovered != 1 {
-		t.Fatalf("written report = %+v, want VineflowerRecovered=1", written)
+	if written.ProcyonRecovered != 1 {
+		t.Fatalf("written report = %+v, want ProcyonRecovered=1", written)
 	}
 	if _, err := os.Stat(filepath.Join(outputDir, "resources/app.properties")); err != nil {
 		t.Fatalf("expected resources to be preserved: %v", err)
@@ -103,7 +103,7 @@ func TestEngineMarksAmbiguousRetryOutputAsFailure(t *testing.T) {
 				return decompiler.RunResult{}, nil
 			},
 		},
-		VineflowerRunner: &scriptedRunner{
+		ProcyonRunner: &scriptedRunner{
 			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
 				outputDir := spec.Args[3]
 				writePipelineFile(t, outputDir, "com/example/Foo.java", "class Foo {}\n")
@@ -117,7 +117,7 @@ func TestEngineMarksAmbiguousRetryOutputAsFailure(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		VineflowerPath:          "/tools/vineflower.jar",
+		ProcyonPath:          "/tools/procyon.jar",
 		RetryConcurrency: 1,
 	})
 	if err != nil {
@@ -149,9 +149,9 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 				return decompiler.RunResult{}, nil
 			},
 		},
-		VineflowerRunner: &scriptedRunner{
+		ProcyonRunner: &scriptedRunner{
 			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
-				return decompiler.RunResult{}, errors.New("vineflower failed")
+				return decompiler.RunResult{}, errors.New("procyon failed")
 			},
 		},
 	}
@@ -160,7 +160,7 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		VineflowerPath:          "/tools/vineflower.jar",
+		ProcyonPath:          "/tools/procyon.jar",
 		RetryConcurrency: 1,
 	})
 	if err != nil {
@@ -169,12 +169,12 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 	if rep.FinalFailed != 1 {
 		t.Fatalf("FinalFailed = %d, want 1", rep.FinalFailed)
 	}
-	if rep.Classes[0].RetryOutcome != "vineflower_execution_failed" {
-		t.Fatalf("RetryOutcome = %q, want vineflower_execution_failed", rep.Classes[0].RetryOutcome)
+	if rep.Classes[0].RetryOutcome != "procyon_execution_failed" {
+		t.Fatalf("RetryOutcome = %q, want procyon_execution_failed", rep.Classes[0].RetryOutcome)
 	}
 }
 
-func TestEnginePassesDecompileClasspathToVineflowerRetries(t *testing.T) {
+func TestEnginePassesDecompileClasspathToProcyonRetries(t *testing.T) {
 	t.Parallel()
 
 	jarPath := writePipelineJar(t, map[string]string{
@@ -189,9 +189,9 @@ func TestEnginePassesDecompileClasspathToVineflowerRetries(t *testing.T) {
 				return decompiler.RunResult{}, nil
 			},
 		},
-		VineflowerRunner: &scriptedRunner{
+		ProcyonRunner: &scriptedRunner{
 			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
-				if got, want := spec.Args[4], "--extraclasspath="+strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator)); got != want {
+				if got, want := spec.Args[5], strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator)); got != want {
 					t.Fatalf("extraclasspath = %q, want %q", got, want)
 				}
 				outputDir := spec.Args[3]
@@ -205,15 +205,15 @@ func TestEnginePassesDecompileClasspathToVineflowerRetries(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		VineflowerPath:          "/tools/vineflower.jar",
+		ProcyonPath:          "/tools/procyon.jar",
 		ExtraClasspath:   []string{"/deps/base.jar", jarPath, "/deps/cli.jar"},
 		RetryConcurrency: 1,
 	})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
-	if rep.VineflowerRecovered != 1 {
-		t.Fatalf("VineflowerRecovered = %d, want 1", rep.VineflowerRecovered)
+	if rep.ProcyonRecovered != 1 {
+		t.Fatalf("ProcyonRecovered = %d, want 1", rep.ProcyonRecovered)
 	}
 }
 
@@ -232,7 +232,7 @@ func TestEnginePreservesDependencyWarningsSeparately(t *testing.T) {
 				return decompiler.RunResult{}, nil
 			},
 		},
-		VineflowerRunner: &scriptedRunner{
+		ProcyonRunner: &scriptedRunner{
 			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
 				outputDir := spec.Args[3]
 				writePipelineFile(t, outputDir, "com/example/Foo.java", "/* Could not load the following classes */\nclass Foo {}\n")
@@ -245,7 +245,7 @@ func TestEnginePreservesDependencyWarningsSeparately(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		VineflowerPath:          "/tools/vineflower.jar",
+		ProcyonPath:          "/tools/procyon.jar",
 		RetryConcurrency: 1,
 	})
 	if err != nil {
@@ -253,8 +253,8 @@ func TestEnginePreservesDependencyWarningsSeparately(t *testing.T) {
 	}
 
 	classRep := rep.Classes[0]
-	if classRep.Status != ireport.StatusSucceeded || classRep.Origin != ireport.OriginVineflower {
-		t.Fatalf("class report = %+v, want successful Vineflower recovery", classRep)
+	if classRep.Status != ireport.StatusSucceeded || classRep.Origin != ireport.OriginProcyon {
+		t.Fatalf("class report = %+v, want successful Procyon recovery", classRep)
 	}
 	if got := classRep.RetryReasons; len(got) != 1 || got[0] != "jadx_warn" {
 		t.Fatalf("RetryReasons = %v, want [jadx_warn]", got)

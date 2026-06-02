@@ -55,7 +55,7 @@ func TestValidateConfigExpandsConfigRelativeClasspathDirectory(t *testing.T) {
 		InputPath:      "sample.jar",
 		OutputDir:      "out",
 		JadxPath:       "/tools/jadx",
-		VineflowerPath:        "/tools/vineflower",
+		ProcyonPath:        "/tools/procyon",
 		TempDir:        "/tmp/jardec",
 		KeepTemp:       true,
 		ExtraClasspath: []string{"/deps/cli.jar"},
@@ -88,7 +88,7 @@ func TestValidateConfigRejectsClasspathDirectoryWithoutJars(t *testing.T) {
 		InputPath:      "sample.jar",
 		OutputDir:      "out",
 		JadxPath:       "/tools/jadx",
-		VineflowerPath:        "/tools/vineflower",
+		ProcyonPath:        "/tools/procyon",
 		ExtraClasspath: []string{emptyDir},
 	}, func(name string) (string, error) { return name, nil })
 	if err == nil {
@@ -121,7 +121,7 @@ func TestValidateConfigAcceptsNonexistentClasspathFileEntry(t *testing.T) {
 		InputPath:      "sample.jar",
 		OutputDir:      "out",
 		JadxPath:       "/tools/jadx",
-		VineflowerPath:        "/tools/vineflower",
+		ProcyonPath:        "/tools/procyon",
 		ExtraClasspath: []string{"/nonexistent/lib.jar"},
 	}, func(name string) (string, error) { return name, nil })
 	if err != nil {

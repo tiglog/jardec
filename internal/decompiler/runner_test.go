@@ -71,51 +71,51 @@ func TestRunJadxBuildsExpectedCommand(t *testing.T) {
 	}
 }
 
-func TestRunVineflowerBuildsExpectedCommand(t *testing.T) {
+func TestRunProcyonBuildsExpectedCommand(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeRunner{}
-	_, err := RunVineflower(context.Background(), fake, VineflowerConfig{
-		JarPath:   "/tools/vineflower.jar",
+	_, err := RunProcyon(context.Background(), fake, ProcyonConfig{
+		JarPath:   "/tools/procyon.jar",
 		ClassFile: filepath.Join("tmp", "Foo.class"),
 		OutputDir: "out",
 		Classpath: []string{"input.jar", "/deps/a.jar"},
 	})
 	if err != nil {
-		t.Fatalf("RunVineflower() error = %v", err)
+		t.Fatalf("RunProcyon() error = %v", err)
 	}
 
 	if fake.spec.Path != "java" {
 		t.Fatalf("Path = %q, want java", fake.spec.Path)
 	}
 	want := []string{
-		"-jar", "/tools/vineflower.jar",
+		"-jar", "/tools/procyon.jar",
+		"-o", "out",
+		"--classpath", strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
 		filepath.Join("tmp", "Foo.class"),
-		"out",
-		"--extraclasspath=" + strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
 	}
 	if !slices.Equal(fake.spec.Args, want) {
 		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
 	}
 }
 
-func TestRunVineflowerOmitsClasspathWhenEmpty(t *testing.T) {
+func TestRunProcyonOmitsClasspathWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeRunner{}
-	_, err := RunVineflower(context.Background(), fake, VineflowerConfig{
-		JarPath:   "/tools/vineflower.jar",
+	_, err := RunProcyon(context.Background(), fake, ProcyonConfig{
+		JarPath:   "/tools/procyon.jar",
 		ClassFile: filepath.Join("tmp", "Foo.class"),
 		OutputDir: "out",
 	})
 	if err != nil {
-		t.Fatalf("RunVineflower() error = %v", err)
+		t.Fatalf("RunProcyon() error = %v", err)
 	}
 
 	want := []string{
-		"-jar", "/tools/vineflower.jar",
+		"-jar", "/tools/procyon.jar",
+		"-o", "out",
 		filepath.Join("tmp", "Foo.class"),
-		"out",
 	}
 	if !slices.Equal(fake.spec.Args, want) {
 		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)

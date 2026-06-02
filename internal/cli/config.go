@@ -15,7 +15,7 @@ import (
 
 const (
 	defaultJadxBinary        = "jadx"
-	defaultVineflowerBinary = "vineflower"
+	defaultProcyonBinary = "procyon"
 	defaultJavacBinary      = "javac"
 )
 
@@ -23,7 +23,7 @@ type Config struct {
 	InputPath        string
 	OutputDir        string
 	JadxPath         string
-	VineflowerPath   string
+	ProcyonPath   string
 	ExtraClasspath   []string
 	TempDir          string
 	KeepTemp         bool
@@ -35,7 +35,7 @@ func ConfigFromContext(ctx *urfavecli.Context) (Config, error) {
 		InputPath:        ctx.String("input"),
 		OutputDir:        ctx.String("output"),
 		JadxPath:         ctx.String("jadx-path"),
-		VineflowerPath:   ctx.String("vineflower-path"),
+		ProcyonPath:   ctx.String("procyon-path"),
 		ExtraClasspath:   ctx.StringSlice("classpath"),
 		TempDir:          ctx.String("temp-dir"),
 		KeepTemp:         ctx.Bool("keep-temp"),
@@ -49,8 +49,8 @@ func ApplyProjectConfig(cfg Config, projectCfg ProjectConfig) Config {
 	if cfg.JadxPath == "" {
 		cfg.JadxPath = projectCfg.JadxPath
 	}
-	if cfg.VineflowerPath == "" {
-		cfg.VineflowerPath = projectCfg.VineflowerPath
+	if cfg.ProcyonPath == "" {
+		cfg.ProcyonPath = projectCfg.ProcyonPath
 	}
 	classpath := make([]string, 0, len(projectCfg.DecompileClasspath)+len(cfg.ExtraClasspath))
 	for _, entry := range projectCfg.DecompileClasspath {
@@ -118,22 +118,22 @@ func ValidateConfig(cfg Config, lookup LookupFunc) (Config, error) {
 		cfg.JadxPath = jadxTarget
 	}
 
-	vfTarget := cfg.VineflowerPath
+	vfTarget := cfg.ProcyonPath
 	if vfTarget == "" {
-		vfTarget = defaultVineflowerBinary
+		vfTarget = defaultProcyonBinary
 	}
 	if _, err := lookup("java"); err != nil {
 		return Config{}, fmt.Errorf("resolve java runtime: %w", err)
 	}
 	if isJarPath(vfTarget) {
 		if _, err := os.Stat(vfTarget); err != nil {
-			return Config{}, fmt.Errorf("resolve vineflower jar: %w", err)
+			return Config{}, fmt.Errorf("resolve procyon jar: %w", err)
 		}
 	} else if _, err := lookup(vfTarget); err != nil {
-		return Config{}, fmt.Errorf("resolve vineflower binary: %w", err)
+		return Config{}, fmt.Errorf("resolve procyon binary: %w", err)
 	}
-	if cfg.VineflowerPath == "" {
-		cfg.VineflowerPath = vfTarget
+	if cfg.ProcyonPath == "" {
+		cfg.ProcyonPath = vfTarget
 	}
 
 	return cfg, nil

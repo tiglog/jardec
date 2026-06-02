@@ -74,7 +74,7 @@ type JadxConfig struct {
 	OutputDir  string
 }
 
-type VineflowerConfig struct {
+type ProcyonConfig struct {
 	JarPath   string
 	ClassFile string
 	OutputDir string
@@ -88,11 +88,12 @@ func RunJadx(ctx context.Context, runner Runner, cfg JadxConfig) (RunResult, err
 	})
 }
 
-func RunVineflower(ctx context.Context, runner Runner, cfg VineflowerConfig) (RunResult, error) {
-	args := []string{"-jar", cfg.JarPath, cfg.ClassFile, cfg.OutputDir}
+func RunProcyon(ctx context.Context, runner Runner, cfg ProcyonConfig) (RunResult, error) {
+	args := []string{"-jar", cfg.JarPath, "-o", cfg.OutputDir}
 	if len(cfg.Classpath) > 0 {
-		args = append(args, "--extraclasspath="+strings.Join(cfg.Classpath, string(filepath.ListSeparator)))
+		args = append(args, "--classpath", strings.Join(cfg.Classpath, string(filepath.ListSeparator)))
 	}
+	args = append(args, cfg.ClassFile)
 	return runner.Run(ctx, CommandSpec{
 		Path: "java",
 		Args: args,

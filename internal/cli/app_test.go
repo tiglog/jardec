@@ -29,7 +29,7 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/tools/jadx",
-		"--vineflower-path", "/tools/vineflower",
+		"--procyon-path", "/tools/procyon",
 		"--classpath", "/deps/base.jar",
 		"--classpath", "/deps/extra.jar",
 		"--temp-dir", "/tmp/jardec",
@@ -49,8 +49,8 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	if got.JadxPath != "/tools/jadx" {
 		t.Fatalf("JadxPath = %q, want /tools/jadx", got.JadxPath)
 	}
-	if got.VineflowerPath != "/tools/vineflower" {
-		t.Fatalf("VineflowerPath = %q, want /tools/vineflower", got.VineflowerPath)
+	if got.ProcyonPath != "/tools/procyon" {
+		t.Fatalf("ProcyonPath = %q, want /tools/procyon", got.ProcyonPath)
 	}
 	if got.TempDir != "/tmp/jardec" {
 		t.Fatalf("TempDir = %q, want /tmp/jardec", got.TempDir)
@@ -129,13 +129,13 @@ func TestNewAppUsesExplicitBinaryOverrides(t *testing.T) {
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/custom/jadx",
-		"--vineflower-path", "/custom/vineflower",
+		"--procyon-path", "/custom/procyon",
 	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}
 
-	want := []string{"/custom/jadx", "java", "/custom/vineflower"}
+	want := []string{"/custom/jadx", "java", "/custom/procyon"}
 	if !slices.Equal(lookedUp, want) {
 		t.Fatalf("lookup calls = %v, want %v", lookedUp, want)
 	}
@@ -178,7 +178,7 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	}, func() (ProjectConfig, error) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
-			VineflowerPath:                 "/config/vineflower",
+			ProcyonPath:                 "/config/procyon",
 			DecompileClasspath:      []string{"/deps/base.jar", "/deps/shared.jar"},
 			DefaultRetryConcurrency: 7,
 		}, nil
@@ -197,8 +197,8 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	if got.JadxPath != "/config/jadx" {
 		t.Fatalf("JadxPath = %q, want /config/jadx", got.JadxPath)
 	}
-	if got.VineflowerPath != "/config/vineflower" {
-		t.Fatalf("VineflowerPath = %q, want /config/vineflower", got.VineflowerPath)
+	if got.ProcyonPath != "/config/procyon" {
+		t.Fatalf("ProcyonPath = %q, want /config/procyon", got.ProcyonPath)
 	}
 	if got.RetryConcurrency != 7 {
 		t.Fatalf("RetryConcurrency = %d, want 7", got.RetryConcurrency)
@@ -220,7 +220,7 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	}, func() (ProjectConfig, error) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
-			VineflowerPath:                 "/config/vineflower",
+			ProcyonPath:                 "/config/procyon",
 			DecompileClasspath:      []string{"/deps/base.jar", "/deps/shared.jar"},
 			DefaultRetryConcurrency: 7,
 		}, nil
@@ -232,7 +232,7 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/flag/jadx",
-		"--vineflower-path", "/flag/vineflower",
+		"--procyon-path", "/flag/procyon",
 		"--classpath", "/deps/shared.jar",
 		"--classpath", "/deps/cli.jar",
 		"--retry-concurrency", "3",
@@ -244,8 +244,8 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	if got.JadxPath != "/flag/jadx" {
 		t.Fatalf("JadxPath = %q, want /flag/jadx", got.JadxPath)
 	}
-	if got.VineflowerPath != "/flag/vineflower" {
-		t.Fatalf("VineflowerPath = %q, want /flag/vineflower", got.VineflowerPath)
+	if got.ProcyonPath != "/flag/procyon" {
+		t.Fatalf("ProcyonPath = %q, want /flag/procyon", got.ProcyonPath)
 	}
 	if got.RetryConcurrency != 3 {
 		t.Fatalf("RetryConcurrency = %d, want 3", got.RetryConcurrency)
@@ -299,11 +299,11 @@ func TestNewAppExpandsClasspathDirectoryFlags(t *testing.T) {
 	}
 }
 
-func TestNewAppSupportsDirectVineflowerJarPath(t *testing.T) {
+func TestNewAppSupportsDirectProcyonJarPath(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	vfJar := filepath.Join(dir, "vineflower.jar")
+	vfJar := filepath.Join(dir, "procyon.jar")
 	if err := os.WriteFile(vfJar, []byte("jar"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -329,13 +329,13 @@ func TestNewAppSupportsDirectVineflowerJarPath(t *testing.T) {
 		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
-		"--vineflower-path", vfJar,
+		"--procyon-path", vfJar,
 	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}
-	if got.VineflowerPath != vfJar {
-		t.Fatalf("VineflowerPath = %q, want %q", got.VineflowerPath, vfJar)
+	if got.ProcyonPath != vfJar {
+		t.Fatalf("ProcyonPath = %q, want %q", got.ProcyonPath, vfJar)
 	}
 }
 
@@ -682,7 +682,7 @@ func TestNewAppUsesExplicitConfigFlagForDecompile(t *testing.T) {
 
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "prod.yaml")
-	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\nvineflower_path: /explicit/vineflower\ndecompile_classpath:\n  - /explicit/lib.jar\n"), 0o644)
+	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\nprocyon_path: /explicit/procyon\ndecompile_classpath:\n  - /explicit/lib.jar\n"), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -711,8 +711,8 @@ func TestNewAppUsesExplicitConfigFlagForDecompile(t *testing.T) {
 	if got.JadxPath != "/explicit/jadx" {
 		t.Fatalf("JadxPath = %q, want /explicit/jadx", got.JadxPath)
 	}
-	if got.VineflowerPath != "/explicit/vineflower" {
-		t.Fatalf("VineflowerPath = %q, want /explicit/vineflower", got.VineflowerPath)
+	if got.ProcyonPath != "/explicit/procyon" {
+		t.Fatalf("ProcyonPath = %q, want /explicit/procyon", got.ProcyonPath)
 	}
 	if want := []string{"/explicit/lib.jar"}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
@@ -725,7 +725,7 @@ func TestNewAppConfigFlagOverridesProjectConfigDiscovery(t *testing.T) {
 	// Create a config in a separate directory that should NOT be found by normal discovery.
 	explicitDir := t.TempDir()
 	configPath := filepath.Join(explicitDir, "explicit.yaml")
-	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\nvineflower_path: /explicit/vineflower\n"), 0o644)
+	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\nprocyon_path: /explicit/procyon\n"), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}

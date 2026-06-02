@@ -12,7 +12,7 @@ func TestApplySourcePatchProjectConfigUsesDefaultClasspath(t *testing.T) {
 
 	cfg := ApplySourcePatchProjectConfig(SourcePatchConfig{}, ProjectConfig{
 		JavacPath:             "/config/javac",
-		PatchSourcesClasspath: []string{"/deps/base.jar", "/deps/shared.jar"},
+		DecompileClasspath: []string{"/deps/base.jar", "/deps/shared.jar"},
 	})
 
 	if cfg.JavacPath != "/config/javac" {
@@ -29,7 +29,7 @@ func TestApplySourcePatchProjectConfigRebasesRelativeConfigEntries(t *testing.T)
 	cfgDir := filepath.Join(string(filepath.Separator), "repo")
 	cfg := ApplySourcePatchProjectConfig(SourcePatchConfig{}, ProjectConfig{
 		JavacPath:             filepath.Join("tools", "javac-wrapper"),
-		PatchSourcesClasspath: []string{filepath.Join("libs", "base.jar"), filepath.Join("libs", "shared.jar")},
+		DecompileClasspath: []string{filepath.Join("libs", "base.jar"), filepath.Join("libs", "shared.jar")},
 		ConfigDir:             cfgDir,
 	})
 
@@ -52,7 +52,7 @@ func TestApplySourcePatchProjectConfigAppendsCLIClasspathAfterConfig(t *testing.
 		ExtraClasspath: []string{"/deps/shared.jar", "/deps/cli.jar"},
 	}, ProjectConfig{
 		JavacPath:             "/config/javac",
-		PatchSourcesClasspath: []string{"/deps/base.jar", "/deps/shared.jar"},
+		DecompileClasspath: []string{"/deps/base.jar", "/deps/shared.jar"},
 	})
 
 	if cfg.JavacPath != "/cli/javac" {

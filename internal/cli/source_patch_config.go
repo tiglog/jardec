@@ -35,8 +35,8 @@ func ApplySourcePatchProjectConfig(cfg SourcePatchConfig, projectCfg ProjectConf
 	if cfg.JavacPath == "" {
 		cfg.JavacPath = resolveProjectConfigExecutable(projectCfg.ConfigDir, projectCfg.JavacPath)
 	}
-	classpath := make([]string, 0, len(projectCfg.PatchSourcesClasspath)+len(cfg.ExtraClasspath))
-	for _, entry := range projectCfg.PatchSourcesClasspath {
+	classpath := make([]string, 0, len(projectCfg.DecompileClasspath)+len(cfg.ExtraClasspath))
+	for _, entry := range projectCfg.DecompileClasspath {
 		entry = resolveProjectConfigPath(projectCfg.ConfigDir, entry)
 		if entry != "" && !slices.Contains(classpath, entry) {
 			classpath = append(classpath, entry)
@@ -115,8 +115,14 @@ func ValidateSourcePatchConfig(cfg SourcePatchConfig, lookup LookupFunc) (Source
 		if entry == "" {
 			return SourcePatchConfig{}, errors.New("classpath entry must not be empty")
 		}
-		if !slices.Contains(classpath, entry) {
-			classpath = append(classpath, entry)
+		expandedEntries, err := expandClasspathEntry(entry)
+		if err != nil {
+			return SourcePatchConfig{}, err
+		}
+		for _, expanded := range expandedEntries {
+			if !slices.Contains(classpath, expanded) {
+				classpath = append(classpath, expanded)
+			}
 		}
 	}
 	cfg.ExtraClasspath = classpath

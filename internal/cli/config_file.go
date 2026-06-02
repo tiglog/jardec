@@ -16,7 +16,6 @@ type ProjectConfig struct {
 	ProcyonPath          string   `yaml:"procyon_path"`
 	JavacPath               string   `yaml:"javac_path"`
 	DecompileClasspath      []string `yaml:"decompile_classpath"`
-	PatchSourcesClasspath   []string `yaml:"patch_sources_classpath"`
 	DefaultRetryConcurrency int      `yaml:"default_retry_concurrency"`
 	ConfigDir               string   `yaml:"-"`
 }

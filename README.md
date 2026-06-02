@@ -228,7 +228,7 @@ go run ./cmd/jardec patch-sources \
 - 必须至少提供一个 `--class`，并按 top-level binary class name 指定，例如 `com.example.Foo`
 - `--class` 只接受 top-level class；像 `com.example.Foo$Inner` 这样的 nested target 会直接报错
 - `--sources-dir` 需要满足稳定映射：`com.example.Foo` 对应 `edited-src/com/example/Foo.java`
-- 编译时会自动把 `--input-jar` 加入 classpath，再把 `config.yaml` 里的 `patch_sources_classpath` 依次接在后面，最后再追加每个 `--classpath`
+- 编译时会自动把 `--input-jar` 加入 classpath，再把 `config.yaml` 里的 `decompile_classpath` 依次接在后面，最后再追加每个 `--classpath`
 - 编译产物会先写入隔离的临时 classes 目录，再复用现有 `patch-classes` patch 逻辑
 - 如果 `javac` 失败，或成功退出但没有产生某个 target 对应的 top-level `.class`，命令会在改写归档前失败
 - `patch-sources` 同样会写出 `<output-jar>.report.json` 和 `<output-jar>.report.txt`，其中会额外记录 compile 阶段状态和诊断
@@ -238,11 +238,11 @@ go run ./cmd/jardec patch-sources \
 - `patch-classes`：你自己准备好 `.class`，`jardec` 只负责 patch
 - `patch-sources`：`jardec` 先用 `javac` 编译指定 `.java`，再复用同一套 patch 语义
 
-如果项目里经常复用同一组依赖，可以把默认编译环境写进 `config.yaml`：
+如果项目里经常复用同一组依赖，可以把默认编译环境写进 `config.yaml`（`decompile_classpath` 同时用于 `decompile` 和 `patch-sources`）：
 
 ```yaml
 javac_path: /path/to/javac
-patch_sources_classpath:
+decompile_classpath:
   - libs/dependency-a.jar
   - libs/dependency-b.jar
 ```
@@ -250,7 +250,7 @@ patch_sources_classpath:
 优先级和拼接顺序是：
 
 1. 输入 JAR（自动加入）
-2. `config.yaml` 的 `patch_sources_classpath`
+2. `config.yaml` 的 `decompile_classpath`
 3. 命令行上的 `--classpath`
 
 其中重复项会按首次出现顺序去重，命令行仍然可以用于一次性的追加依赖。`config.yaml` 里的相对路径会按 **该配置文件所在目录** 解析，因此从子目录执行命令时也能稳定找到同一组依赖。
@@ -266,7 +266,7 @@ decompile_classpath:
   - libs
   - third_party/extra.jar
 javac_path: /path/to/javac
-patch_sources_classpath:
+decompile_classpath:
   - libs/dependency-a.jar
   - libs/dependency-b.jar
 default_retry_concurrency: 4
@@ -280,8 +280,7 @@ default_retry_concurrency: 4
 
 说明：
 
-- `patch_sources_classpath` 仅用于 `patch-sources`
-- `decompile_classpath` 用于 `decompile` 的 Procyon fallback retry
+- `decompile_classpath` 同时用于 `decompile` 的 Procyon fallback retry 和 `patch-sources` 的 javac 编译
 - `decompile_classpath` 的每一项既可以是单个 JAR，也可以是包含多个 JAR 的目录；目录只做**非递归**展开
 - `config.yaml` 中的相对路径按该配置文件所在目录解释
 

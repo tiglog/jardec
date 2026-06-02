@@ -2,10 +2,11 @@
 #jadx_path: /path/to/jadx
 #
 ## Path to the Procyon jar used for per-class fallback retries.
-## jardec invokes it as: java -jar <procyon_path> <class> <outputdir> --extraclasspath=<cp>
+## jardec invokes it as: java -jar <procyon_path> -o <outputdir> --classpath <cp> <class>
 #procyon_path: /path/to/procyon.jar
 #
-## Default dependency jars or directories for `decompile`. Procyon fallback retries use:
+## Default dependency jars or directories for decompilation and patch-sources.
+## Both `decompile` and `patch-sources` share this classpath:
 ## input JAR -> decompile_classpath -> CLI --classpath entries
 ##
 ## Relative paths are resolved from the directory containing this config file.
@@ -17,11 +18,6 @@
 #
 ## Path to the javac executable used by patch-sources.
 #javac_path: /path/to/javac
-#
-## Default classpath entries appended after the input JAR for patch-sources.
-#patch_sources_classpath:
-#  - libs/dependency-a.jar
-#  - libs/dependency-b.jar
 #
 ## Default number of concurrent Procyon retry workers when --retry-concurrency is not provided.
 default_retry_concurrency: 4

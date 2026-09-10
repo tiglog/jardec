@@ -86,8 +86,16 @@ func TestCommandRunnerCancelsLinuxProcessGroup(t *testing.T) {
 	if parseErr != nil {
 		t.Fatalf("Atoi(pid): %v", parseErr)
 	}
-	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
-		t.Fatalf("child pid %d is still alive: %v", pid, err)
+	deadline := time.Now().Add(time.Second)
+	for {
+		err := syscall.Kill(pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("child pid %d is still alive: %v", pid, err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

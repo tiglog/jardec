@@ -23,6 +23,15 @@ type RunResult struct {
 	ExitCode int
 }
 
+const maxDiagnosticBytes = 4096
+
+func TruncateDiagnostic(text string) string {
+	if len(text) <= maxDiagnosticBytes {
+		return text
+	}
+	return text[:maxDiagnosticBytes] + "\n[truncated]"
+}
+
 type Runner interface {
 	Run(context.Context, CommandSpec) (RunResult, error)
 }
@@ -89,13 +98,28 @@ func RunJadx(ctx context.Context, runner Runner, cfg JadxConfig) (RunResult, err
 }
 
 func RunProcyon(ctx context.Context, runner Runner, cfg ProcyonConfig) (RunResult, error) {
+	return runner.Run(ctx, ProcyonCommand(cfg))
+}
+
+func ProcyonCommand(cfg ProcyonConfig) CommandSpec {
 	args := []string{"-jar", cfg.JarPath, "-o", cfg.OutputDir}
 	if len(cfg.Classpath) > 0 {
 		args = append(args, "--classpath", strings.Join(cfg.Classpath, string(filepath.ListSeparator)))
 	}
 	args = append(args, cfg.ClassFile)
-	return runner.Run(ctx, CommandSpec{
+	return CommandSpec{
 		Path: "java",
 		Args: args,
+	}
+}
+
+func RunProcyonPreflight(ctx context.Context, runner Runner, jarPath string) (RunResult, error) {
+	return runner.Run(ctx, CommandSpec{
+		Path: "java",
+		Args: []string{"-jar", jarPath, "--help"},
 	})
+}
+
+func DescribeCommand(spec CommandSpec) string {
+	return strings.Join(append([]string{spec.Path}, spec.Args...), " ")
 }

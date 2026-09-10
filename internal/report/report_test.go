@@ -13,7 +13,7 @@ func TestWriteJSONSerializesSummaryAndClasses(t *testing.T) {
 		Jar:                  "sample.jar",
 		TotalTopLevelClasses: 2,
 		JadxSucceeded:        1,
-		ProcyonRecovered:  1,
+		ProcyonRecovered:     1,
 		FinalFailed:          0,
 		Classes: []ClassResult{
 			{
@@ -51,7 +51,7 @@ func TestRenderTextSummarizesCoverage(t *testing.T) {
 		Jar:                  "sample.jar",
 		TotalTopLevelClasses: 3,
 		JadxSucceeded:        1,
-		ProcyonRecovered:  1,
+		ProcyonRecovered:     1,
 		FinalFailed:          1,
 		RetryCandidates:      2,
 		TotalElapsedMillis:   15,
@@ -63,6 +63,9 @@ func TestRenderTextSummarizesCoverage(t *testing.T) {
 				RetryReasons:       []string{"jadx_warn"},
 				RetryOutcome:       "missing_retry_output",
 				DependencyWarnings: []string{"Could not load the following classes"},
+				ProcyonDiagnostics: &ProcyonDiagnostics{
+					WorkspaceDisposition: "cleaned",
+				},
 			},
 		},
 	}
@@ -80,6 +83,7 @@ func TestRenderTextSummarizesCoverage(t *testing.T) {
 		"com.example.Bad",
 		"missing_retry_output",
 		"Could not load the following classes",
+		"procyonDiagnostics=available",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("RenderText() = %q, want substring %q", text, want)
@@ -108,6 +112,41 @@ func TestWriteJSONSerializesDependencyWarnings(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"dependencyWarnings":["Could not load the following classes"]`) {
 		t.Fatalf("json = %s, want dependency warnings", string(data))
+	}
+}
+
+func TestWriteJSONSerializesBoundedProcyonDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	rep := Report{
+		Jar: "sample.jar",
+		Classes: []ClassResult{{
+			BinaryName:   "com.example.Failed",
+			Status:       StatusFailed,
+			RetryOutcome: "procyon_execution_failed",
+			ProcyonDiagnostics: &ProcyonDiagnostics{
+				ExitCode:             9,
+				Command:              "java -jar /tools/procyon.jar --help",
+				Stdout:               "tool stdout",
+				Stderr:               "tool stderr",
+				WorkspaceDisposition: "cleaned",
+			},
+		}},
+	}
+
+	data, err := json.Marshal(rep)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	for _, want := range []string{
+		`"procyonDiagnostics"`,
+		`"exitCode":9`,
+		`"command":"java -jar /tools/procyon.jar --help"`,
+		`"workspaceDisposition":"cleaned"`,
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("json = %s, want substring %s", data, want)
+		}
 	}
 }
 

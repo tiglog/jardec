@@ -28,6 +28,8 @@ go run ./cmd/jardec decompile \
 
 `--classpath` 的条目可以是单个 JAR，也可以是目录（非递归展开其中所有 `*.jar`，按文件名排序）。
 
+启动时，`jardec` 会先执行 `java -jar <procyon-path> --help` 验证 Procyon JAR 可运行；预检失败会在执行 jadx 前停止，并输出退出码及受限的工具诊断。
+
 ## 配置复用
 
 把常用工具路径和依赖写进 `config.yaml`，避免每次敲长命令：
@@ -84,6 +86,8 @@ jardec decompile [选项]
 - `sources/` — 最终 Java 源码（保留 jadx 输出，被 Procyon 成功恢复的类会被覆盖）
 - `resources/` — jadx 产出的资源文件
 - `report.json` / `report.txt` — 包含总数、回退候选数、成功恢复数、失败数、耗时及逐类详情
+
+对发生 Procyon 回退的类，`report.json` 还会提供 `procyonDiagnostics`：退出码、实际命令描述和受限的 stdout/stderr。默认临时工作区在完成后清理，并记录 `workspaceDisposition: "cleaned"`；传入 `--keep-temp` 时，失败重试的记录会包含保留的 `workspacePath`，可用于进一步检查工具输出。
 
 ## 子命令一览
 

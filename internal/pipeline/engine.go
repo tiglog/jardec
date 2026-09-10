@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ type Config struct {
 	InputPath        string
 	OutputDir        string
 	JadxPath         string
-	ProcyonPath   string
+	ProcyonPath      string
 	ExtraClasspath   []string
 	TempDir          string
 	KeepTemp         bool
@@ -28,7 +29,7 @@ type Config struct {
 }
 
 type Engine struct {
-	JadxRunner decompiler.Runner
+	JadxRunner    decompiler.Runner
 	ProcyonRunner decompiler.Runner
 }
 
@@ -42,6 +43,10 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	}
 	if cfg.RetryConcurrency <= 0 {
 		cfg.RetryConcurrency = 1
+	}
+	preflightResult, err := decompiler.RunProcyonPreflight(ctx, e.ProcyonRunner, cfg.ProcyonPath)
+	if err != nil {
+		return ireport.Report{}, formatProcyonPreflightError(preflightResult)
 	}
 
 	classes, err := jarpkg.EnumerateTopLevelClasses(cfg.InputPath)
@@ -101,7 +106,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	retryStartedAt := time.Now()
 	retryResults, err := ExecuteProcyonRetries(ctx, e.ProcyonRunner, ProcyonRetryConfig{
 		BaseTempDir:    cfg.TempDir,
-		ProcyonPath: cfg.ProcyonPath,
+		ProcyonPath:    cfg.ProcyonPath,
 		InputJar:       cfg.InputPath,
 		ExtraClasspath: cfg.ExtraClasspath,
 		Concurrency:    cfg.RetryConcurrency,
@@ -111,6 +116,12 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 		return ireport.Report{}, err
 	}
 	for _, result := range retryResults {
+		workspaceDisposition := "cleaned"
+		workspacePath := ""
+		if cfg.KeepTemp && result.RootDir != "" {
+			workspaceDisposition = "retained"
+			workspacePath = result.RootDir
+		}
 		if !cfg.KeepTemp && result.RootDir != "" {
 			defer os.RemoveAll(result.RootDir)
 		}
@@ -119,6 +130,14 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 			BinaryName:         result.Class.BinaryName,
 			RetryReasons:       retryReasons[result.Class.BinaryName],
 			DependencyWarnings: collectDependencyWarnings(filepath.Join(result.OutputDir, filepath.FromSlash(result.Class.SourcePath)), result.Diagnostics),
+			ProcyonDiagnostics: &ireport.ProcyonDiagnostics{
+				ExitCode:             result.Diagnostics.ExitCode,
+				Command:              result.Command,
+				Stdout:               decompiler.TruncateDiagnostic(result.Diagnostics.Stdout),
+				Stderr:               decompiler.TruncateDiagnostic(result.Diagnostics.Stderr),
+				WorkspaceDisposition: workspaceDisposition,
+				WorkspacePath:        workspacePath,
+			},
 		}
 
 		if result.Err != nil {
@@ -179,6 +198,17 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	}
 
 	return rep, nil
+}
+
+func formatProcyonPreflightError(result decompiler.RunResult) error {
+	message := fmt.Sprintf("procyon preflight failed (exit code %d)", result.ExitCode)
+	if stdout := decompiler.TruncateDiagnostic(result.Stdout); stdout != "" {
+		message += fmt.Sprintf("\nstdout:\n%s", stdout)
+	}
+	if stderr := decompiler.TruncateDiagnostic(result.Stderr); stderr != "" {
+		message += fmt.Sprintf("\nstderr:\n%s", stderr)
+	}
+	return errors.New(message)
 }
 
 func mapRetryFailure(err error) string {

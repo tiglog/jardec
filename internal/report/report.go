@@ -18,25 +18,35 @@ const (
 type Origin string
 
 const (
-	OriginJADX Origin = "jadx"
+	OriginJADX    Origin = "jadx"
 	OriginProcyon Origin = "procyon"
 )
 
 type ClassResult struct {
-	BinaryName         string   `json:"binaryName"`
-	Status             Status   `json:"status"`
-	Origin             Origin   `json:"origin,omitempty"`
-	RetryReasons       []string `json:"retryReasons,omitempty"`
-	RetryOutcome       string   `json:"retryOutcome,omitempty"`
-	FailureReason      string   `json:"failureReason,omitempty"`
-	DependencyWarnings []string `json:"dependencyWarnings,omitempty"`
+	BinaryName         string              `json:"binaryName"`
+	Status             Status              `json:"status"`
+	Origin             Origin              `json:"origin,omitempty"`
+	RetryReasons       []string            `json:"retryReasons,omitempty"`
+	RetryOutcome       string              `json:"retryOutcome,omitempty"`
+	FailureReason      string              `json:"failureReason,omitempty"`
+	DependencyWarnings []string            `json:"dependencyWarnings,omitempty"`
+	ProcyonDiagnostics *ProcyonDiagnostics `json:"procyonDiagnostics,omitempty"`
+}
+
+type ProcyonDiagnostics struct {
+	ExitCode             int    `json:"exitCode"`
+	Command              string `json:"command,omitempty"`
+	Stdout               string `json:"stdout,omitempty"`
+	Stderr               string `json:"stderr,omitempty"`
+	WorkspaceDisposition string `json:"workspaceDisposition"`
+	WorkspacePath        string `json:"workspacePath,omitempty"`
 }
 
 type Report struct {
 	Jar                  string        `json:"jar"`
 	TotalTopLevelClasses int           `json:"totalTopLevelClasses"`
 	JadxSucceeded        int           `json:"jadxSucceeded"`
-	ProcyonRecovered  int           `json:"procyonRecovered"`
+	ProcyonRecovered     int           `json:"procyonRecovered"`
 	FinalFailed          int           `json:"finalFailed"`
 	RetryCandidates      int           `json:"retryCandidates"`
 	TotalElapsedMillis   int64         `json:"totalElapsedMillis"`
@@ -151,6 +161,9 @@ func RenderText(rep Report) string {
 		}
 		if len(class.DependencyWarnings) > 0 {
 			line += fmt.Sprintf(", dependencyWarnings=%s", strings.Join(class.DependencyWarnings, ","))
+		}
+		if class.ProcyonDiagnostics != nil {
+			line += ", procyonDiagnostics=available"
 		}
 		line += "]"
 		lines = append(lines, line)

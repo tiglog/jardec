@@ -122,6 +122,36 @@ func TestRunProcyonOmitsClasspathWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestRunProcyonPreflightBuildsHelpCommand(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeRunner{}
+	_, err := RunProcyonPreflight(context.Background(), fake, "/tools/procyon.jar")
+	if err != nil {
+		t.Fatalf("RunProcyonPreflight() error = %v", err)
+	}
+
+	if fake.spec.Path != "java" {
+		t.Fatalf("Path = %q, want java", fake.spec.Path)
+	}
+	want := []string{"-jar", "/tools/procyon.jar", "--help"}
+	if !slices.Equal(fake.spec.Args, want) {
+		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
+	}
+}
+
+func TestTruncateDiagnosticBoundsToolOutput(t *testing.T) {
+	t.Parallel()
+
+	got := TruncateDiagnostic(strings.Repeat("x", maxDiagnosticBytes+1))
+	if !strings.HasPrefix(got, strings.Repeat("x", maxDiagnosticBytes)) {
+		t.Fatalf("TruncateDiagnostic() prefix = %q, want first %d bytes", got, maxDiagnosticBytes)
+	}
+	if !strings.HasSuffix(got, "\n[truncated]") {
+		t.Fatalf("TruncateDiagnostic() = %q, want truncation marker", got)
+	}
+}
+
 func TestCommandRunnerPreservesParentEnvironment(t *testing.T) {
 	t.Parallel()
 

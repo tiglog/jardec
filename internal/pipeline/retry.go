@@ -21,7 +21,7 @@ var (
 
 type ProcyonRetryConfig struct {
 	BaseTempDir    string
-	ProcyonPath string
+	ProcyonPath    string
 	InputJar       string
 	ExtraClasspath []string
 	Concurrency    int
@@ -31,6 +31,7 @@ type RetryResult struct {
 	Class       jarpkg.Class
 	RootDir     string
 	OutputDir   string
+	Command     string
 	Diagnostics decompiler.RunResult
 	Err         error
 }
@@ -89,17 +90,19 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg Procy
 		return RetryResult{Class: class, RootDir: rootDir, Err: err}
 	}
 
-	diagnostics, err := decompiler.RunProcyon(ctx, runner, decompiler.ProcyonConfig{
+	procyonConfig := decompiler.ProcyonConfig{
 		JarPath:   cfg.ProcyonPath,
 		ClassFile: classFile,
 		OutputDir: outputDir,
 		Classpath: buildRetryClasspath(cfg.InputJar, cfg.ExtraClasspath),
-	})
+	}
+	diagnostics, err := decompiler.RunProcyon(ctx, runner, procyonConfig)
 
 	return RetryResult{
 		Class:       class,
 		RootDir:     rootDir,
 		OutputDir:   outputDir,
+		Command:     decompiler.DescribeCommand(decompiler.ProcyonCommand(procyonConfig)),
 		Diagnostics: diagnostics,
 		Err:         err,
 	}

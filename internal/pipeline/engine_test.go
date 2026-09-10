@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestEngineRecoversJadxWarnAndWritesReports(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        outputDir,
 		JadxPath:         "/tools/jadx",
-		ProcyonPath:          "/tools/procyon.jar",
+		ProcyonPath:      "/tools/procyon.jar",
 		RetryConcurrency: 2,
 	})
 	if err != nil {
@@ -88,6 +89,54 @@ func TestEngineRecoversJadxWarnAndWritesReports(t *testing.T) {
 	}
 }
 
+func TestEngineStopsBeforeJadxWhenProcyonPreflightFails(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{
+		"com/example/Foo.class": "foo",
+	})
+	outputDir := filepath.Join(t.TempDir(), "output")
+	jadxCalled := false
+	engine := Engine{
+		JadxRunner: &scriptedRunner{
+			run: func(decompiler.CommandSpec) (decompiler.RunResult, error) {
+				jadxCalled = true
+				return decompiler.RunResult{}, nil
+			},
+		},
+		ProcyonRunner: &scriptedRunner{
+			preflight: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+				if want := []string{"-jar", "/tools/procyon.jar", "--help"}; !slices.Equal(spec.Args, want) {
+					t.Fatalf("preflight args = %v, want %v", spec.Args, want)
+				}
+				return decompiler.RunResult{Stderr: "procyon stderr", ExitCode: 9}, errors.New("exit status 9")
+			},
+		},
+	}
+
+	_, err := engine.Run(context.Background(), Config{
+		InputPath:        jarPath,
+		OutputDir:        outputDir,
+		JadxPath:         "/tools/jadx",
+		ProcyonPath:      "/tools/procyon.jar",
+		RetryConcurrency: 1,
+	})
+	if err == nil {
+		t.Fatal("Run() error = nil, want failed Procyon preflight")
+	}
+	for _, want := range []string{"exit code 9", "procyon stderr"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("Run() error = %q, want substring %q", err, want)
+		}
+	}
+	if jadxCalled {
+		t.Fatal("jadx ran after Procyon preflight failed")
+	}
+	if _, statErr := os.Stat(outputDir); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("output directory stat error = %v, want not exist", statErr)
+	}
+}
+
 func TestEngineMarksAmbiguousRetryOutputAsFailure(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +166,7 @@ func TestEngineMarksAmbiguousRetryOutputAsFailure(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		ProcyonPath:          "/tools/procyon.jar",
+		ProcyonPath:      "/tools/procyon.jar",
 		RetryConcurrency: 1,
 	})
 	if err != nil {
@@ -140,6 +189,7 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 	jarPath := writePipelineJar(t, map[string]string{
 		"com/example/Foo.class": "foo",
 	})
+	tempDir := t.TempDir()
 
 	engine := Engine{
 		JadxRunner: &scriptedRunner{
@@ -151,7 +201,11 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 		},
 		ProcyonRunner: &scriptedRunner{
 			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
-				return decompiler.RunResult{}, errors.New("procyon failed")
+				return decompiler.RunResult{
+					Stdout:   "procyon stdout",
+					Stderr:   "procyon stderr",
+					ExitCode: 17,
+				}, errors.New("procyon failed")
 			},
 		},
 	}
@@ -160,7 +214,9 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		ProcyonPath:          "/tools/procyon.jar",
+		ProcyonPath:      "/tools/procyon.jar",
+		TempDir:          tempDir,
+		KeepTemp:         true,
 		RetryConcurrency: 1,
 	})
 	if err != nil {
@@ -171,6 +227,67 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 	}
 	if rep.Classes[0].RetryOutcome != "procyon_execution_failed" {
 		t.Fatalf("RetryOutcome = %q, want procyon_execution_failed", rep.Classes[0].RetryOutcome)
+	}
+	diagnostics := rep.Classes[0].ProcyonDiagnostics
+	if diagnostics == nil {
+		t.Fatal("ProcyonDiagnostics = nil, want execution diagnostics")
+	}
+	if diagnostics.ExitCode != 17 || diagnostics.Stdout != "procyon stdout" || diagnostics.Stderr != "procyon stderr" {
+		t.Fatalf("ProcyonDiagnostics = %+v, want exit code and tool streams", diagnostics)
+	}
+	if !strings.Contains(diagnostics.Command, "java -jar /tools/procyon.jar") {
+		t.Fatalf("ProcyonDiagnostics.Command = %q, want Procyon command", diagnostics.Command)
+	}
+	if diagnostics.WorkspaceDisposition != "retained" || diagnostics.WorkspacePath == "" {
+		t.Fatalf("ProcyonDiagnostics workspace = %+v, want retained workspace path", diagnostics)
+	}
+}
+
+func TestEngineReportsCleanedWorkspaceAfterProcyonFailure(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{
+		"com/example/Foo.class": "foo",
+	})
+	tempDir := t.TempDir()
+	engine := Engine{
+		JadxRunner: &scriptedRunner{
+			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+				writePipelineFile(t, spec.Args[1], "sources/com/example/Foo.java", "class Foo {\n// JADX WARN: fallback\n}\n")
+				return decompiler.RunResult{}, nil
+			},
+		},
+		ProcyonRunner: &scriptedRunner{
+			run: func(decompiler.CommandSpec) (decompiler.RunResult, error) {
+				return decompiler.RunResult{ExitCode: 4}, errors.New("procyon failed")
+			},
+		},
+	}
+
+	rep, err := engine.Run(context.Background(), Config{
+		InputPath:        jarPath,
+		OutputDir:        t.TempDir(),
+		JadxPath:         "/tools/jadx",
+		ProcyonPath:      "/tools/procyon.jar",
+		TempDir:          tempDir,
+		RetryConcurrency: 1,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	diagnostics := rep.Classes[0].ProcyonDiagnostics
+	if diagnostics == nil {
+		t.Fatal("ProcyonDiagnostics = nil, want diagnostics")
+	}
+	if diagnostics.WorkspaceDisposition != "cleaned" || diagnostics.WorkspacePath != "" {
+		t.Fatalf("workspace diagnostics = %+v, want cleaned with no path", diagnostics)
+	}
+	entries, err := os.ReadDir(tempDir)
+	if err != nil {
+		t.Fatalf("ReadDir(%q) error = %v", tempDir, err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("temporary workspaces = %v, want all cleaned", entries)
 	}
 }
 
@@ -205,7 +322,7 @@ func TestEnginePassesDecompileClasspathToProcyonRetries(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		ProcyonPath:          "/tools/procyon.jar",
+		ProcyonPath:      "/tools/procyon.jar",
 		ExtraClasspath:   []string{"/deps/base.jar", jarPath, "/deps/cli.jar"},
 		RetryConcurrency: 1,
 	})
@@ -245,7 +362,7 @@ func TestEnginePreservesDependencyWarningsSeparately(t *testing.T) {
 		InputPath:        jarPath,
 		OutputDir:        t.TempDir(),
 		JadxPath:         "/tools/jadx",
-		ProcyonPath:          "/tools/procyon.jar",
+		ProcyonPath:      "/tools/procyon.jar",
 		RetryConcurrency: 1,
 	})
 	if err != nil {
@@ -268,9 +385,16 @@ func TestEnginePreservesDependencyWarningsSeparately(t *testing.T) {
 }
 
 type scriptedRunner struct {
-	run func(spec decompiler.CommandSpec) (decompiler.RunResult, error)
+	run       func(spec decompiler.CommandSpec) (decompiler.RunResult, error)
+	preflight func(spec decompiler.CommandSpec) (decompiler.RunResult, error)
 }
 
 func (s *scriptedRunner) Run(_ context.Context, spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+	if slices.Equal(spec.Args[2:], []string{"--help"}) {
+		if s.preflight != nil {
+			return s.preflight(spec)
+		}
+		return decompiler.RunResult{}, nil
+	}
 	return s.run(spec)
 }

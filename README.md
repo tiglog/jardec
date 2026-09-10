@@ -26,7 +26,9 @@ go run ./cmd/jardec decompile \
   --classpath third_party/dep.jar
 ```
 
-`--classpath` 的条目可以是单个 JAR，也可以是目录（非递归展开其中所有 `*.jar`，按文件名排序）。
+`--classpath` 的条目可以是可读的单个 JAR，也可以是目录（非递归展开其中所有 `*.jar`，按文件名排序）。缺失、非 JAR 或不可读的单文件条目会在启动工具前被拒绝。
+
+`--temp-dir` 指定的根目录不存在时会自动创建；无法创建时命令会在调用 JADX 或 Procyon 前失败。每次 JADX 调用都会在其隔离工作区内使用独立的 `XDG_CONFIG_HOME` 与 `XDG_CACHE_HOME`，因此不会依赖用户目录可写。
 
 启动时，`jardec` 会先执行 `java -jar <procyon-path> --help` 验证 Procyon JAR 可运行；预检失败会在执行 jadx 前停止，并输出退出码及受限的工具诊断。
 
@@ -89,6 +91,8 @@ jardec decompile [选项]
 
 对发生 Procyon 回退的类，`report.json` 还会提供 `procyonDiagnostics`：退出码、实际命令描述和受限的 stdout/stderr。默认临时工作区在完成后清理，并记录 `workspaceDisposition: "cleaned"`；传入 `--keep-temp` 时，失败重试的记录会包含保留的 `workspacePath`，可用于进一步检查工具输出。
 
+`procyonDiagnostics.elapsedMillis` 是单个回退 JVM 调用的耗时；总回退墙钟耗时仍记录在 `retryElapsedMillis`。若回退类很多，可从较小的 `--retry-concurrency` 开始，根据这两个指标和机器负载逐步调高。
+
 ## 子命令一览
 
 | 命令 | 用途 |
@@ -142,4 +146,13 @@ internal/sourcepatch/   Java source compile + patch 编排
 make test    # 运行测试
 make build   # 编译到 bin/jardec
 make run     # 显示帮助
+```
+
+真实工具端到端测试默认跳过，不下载工具也不搜索路径。需要验证时显式提供三个路径：
+
+```bash
+JARDEC_INTEGRATION_JADX_PATH=/path/to/jadx \
+JARDEC_INTEGRATION_PROCYON_PATH=/path/to/procyon.jar \
+JARDEC_INTEGRATION_JAR=/path/to/input.jar \
+go test ./internal/pipeline -run TestRealToolDecompileIntegration -count=1 -v
 ```

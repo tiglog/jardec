@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type CommandSpec struct {
@@ -25,6 +26,8 @@ type RunResult struct {
 
 const maxDiagnosticBytes = 4096
 
+const commandWaitDelay = time.Second
+
 func TruncateDiagnostic(text string) string {
 	if len(text) <= maxDiagnosticBytes {
 		return text
@@ -40,6 +43,8 @@ type CommandRunner struct{}
 
 func (CommandRunner) Run(ctx context.Context, spec CommandSpec) (RunResult, error) {
 	cmd := exec.CommandContext(ctx, spec.Path, spec.Args...)
+	cmd.WaitDelay = commandWaitDelay
+	configureCommandCancellation(cmd)
 	cmd.Dir = spec.Dir
 	cmd.Env = os.Environ()
 	if len(spec.Env) > 0 {

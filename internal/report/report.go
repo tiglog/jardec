@@ -41,6 +41,8 @@ type ProcyonDiagnostics struct {
 	WorkspaceDisposition string `json:"workspaceDisposition"`
 	WorkspacePath        string `json:"workspacePath,omitempty"`
 	ElapsedMillis        int64  `json:"elapsedMillis"`
+	TimedOut             bool   `json:"timedOut,omitempty"`
+	TimeoutMillis        int64  `json:"timeoutMillis,omitempty"`
 }
 
 type Report struct {

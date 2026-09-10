@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	urfavecli "github.com/urfave/cli/v2"
 )
@@ -28,9 +29,13 @@ type Config struct {
 	TempDir          string
 	KeepTemp         bool
 	RetryConcurrency int
+	ProcyonTimeout   time.Duration
 }
 
 func ConfigFromContext(ctx *urfavecli.Context) (Config, error) {
+	if ctx.IsSet("procyon-timeout") && ctx.Duration("procyon-timeout") <= 0 {
+		return Config{}, errors.New("procyon timeout must be greater than zero")
+	}
 	cfg := Config{
 		InputPath:        ctx.String("input"),
 		OutputDir:        ctx.String("output"),
@@ -40,6 +45,7 @@ func ConfigFromContext(ctx *urfavecli.Context) (Config, error) {
 		TempDir:          ctx.String("temp-dir"),
 		KeepTemp:         ctx.Bool("keep-temp"),
 		RetryConcurrency: ctx.Int("retry-concurrency"),
+		ProcyonTimeout:   ctx.Duration("procyon-timeout"),
 	}
 
 	return cfg, nil
@@ -102,6 +108,12 @@ func ValidateConfig(cfg Config, lookup LookupFunc) (Config, error) {
 	}
 	if cfg.RetryConcurrency <= 0 {
 		return Config{}, errors.New("retry concurrency must be greater than zero")
+	}
+	if cfg.ProcyonTimeout == 0 {
+		cfg.ProcyonTimeout = 90 * time.Second
+	}
+	if cfg.ProcyonTimeout < 0 {
+		return Config{}, errors.New("procyon timeout must be greater than zero")
 	}
 	if lookup == nil {
 		return Config{}, errors.New("lookup function is required")

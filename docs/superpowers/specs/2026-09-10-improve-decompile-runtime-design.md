@@ -24,6 +24,12 @@ CLI 展开 classpath 前，对单个文件条目进行 `Stat`、常规文件、�
 
 重试 worker 围绕 Procyon 进程计时，并在 `ProcyonDiagnostics` 中写入毫秒数。报告保留已有状态、来源、失败原因和总回退墙钟耗时；文本报告只标记诊断可用，避免逐类输出膨胀。
 
+### 单类 Procyon 有界执行
+
+新增 `--procyon-timeout`，默认 90 秒。每个 worker 为一次 Procyon 调用建立独立 `context.WithTimeout`；超时时终止该 JVM，结果分类为 `procyon_timeout`，但其他类继续执行。诊断记录 `timedOut: true`、限制值与实际耗时；零或负时长在 CLI 校验阶段拒绝。
+
+为避免 Procyon 派生进程持有 stdout/stderr 管道导致父 `Wait` 阻塞，Unix 实现将每次工具调用放入独立进程组；context 取消时先向整个组发送终止信号，再由有界 `WaitDelay` 强制收尾。非 Unix 平台保留标准库取消路径，保证编译与确定性降级。
+
 ### 真实工具测试显式启用
 
 集成测试读取 `JARDEC_INTEGRATION_JADX_PATH`、`JARDEC_INTEGRATION_PROCYON_PATH` 与 `JARDEC_INTEGRATION_JAR`。任一缺失即 `Skip`；存在时在测试临时目录运行完整 CLI/引擎流程，并验证报告与输出布局。测试不下载工具、不访问未提供路径。

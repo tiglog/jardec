@@ -22,11 +22,12 @@ func main() {
 			InputPath:        cfg.InputPath,
 			OutputDir:        cfg.OutputDir,
 			JadxPath:         cfg.JadxPath,
-			ProcyonPath:   cfg.ProcyonPath,
+			ProcyonPath:      cfg.ProcyonPath,
 			ExtraClasspath:   cfg.ExtraClasspath,
 			TempDir:          cfg.TempDir,
 			KeepTemp:         cfg.KeepTemp,
 			RetryConcurrency: cfg.RetryConcurrency,
+			ProcyonTimeout:   cfg.ProcyonTimeout,
 		})
 		if err != nil {
 			return err

@@ -26,6 +26,7 @@ type Config struct {
 	TempDir          string
 	KeepTemp         bool
 	RetryConcurrency int
+	ProcyonTimeout   time.Duration
 }
 
 type Engine struct {
@@ -43,6 +44,9 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	}
 	if cfg.RetryConcurrency <= 0 {
 		cfg.RetryConcurrency = 1
+	}
+	if cfg.ProcyonTimeout <= 0 {
+		cfg.ProcyonTimeout = 90 * time.Second
 	}
 	if cfg.TempDir != "" {
 		if err := os.MkdirAll(cfg.TempDir, 0o755); err != nil {
@@ -115,6 +119,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 		InputJar:       cfg.InputPath,
 		ExtraClasspath: cfg.ExtraClasspath,
 		Concurrency:    cfg.RetryConcurrency,
+		Timeout:        cfg.ProcyonTimeout,
 	}, retryClasses)
 	retryElapsed := time.Since(retryStartedAt)
 	if err != nil {
@@ -143,10 +148,16 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 				WorkspaceDisposition: workspaceDisposition,
 				WorkspacePath:        workspacePath,
 				ElapsedMillis:        result.ElapsedMillis,
+				TimedOut:             result.TimedOut,
+				TimeoutMillis:        cfg.ProcyonTimeout.Milliseconds(),
 			},
 		}
 
-		if result.Err != nil {
+		if result.TimedOut {
+			classReport.Status = ireport.StatusFailed
+			classReport.RetryOutcome = "procyon_timeout"
+			classReport.FailureReason = "procyon_timeout"
+		} else if result.Err != nil {
 			classReport.Status = ireport.StatusFailed
 			classReport.RetryOutcome = "procyon_execution_failed"
 			classReport.FailureReason = "procyon_execution_failed"
@@ -233,6 +244,8 @@ func formatJadxError(command string, result decompiler.RunResult) error {
 
 func mapRetryFailure(err error) string {
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "procyon_timeout"
 	case errors.Is(err, ErrAmbiguousRetryOutput):
 		return "ambiguous_retry_output"
 	case errors.Is(err, ErrMissingRetryOutput):

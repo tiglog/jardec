@@ -78,6 +78,7 @@ jardec decompile [选项]
   --temp-dir value                 临时目录根路径
   --keep-temp                     保留中间工作目录（默认 false）
   --retry-concurrency value        回退并发数（默认 CPU 核数）
+  --procyon-timeout value          单个 Procyon 回退的最长时长（默认 90s）
   --config value                   指定 config.yaml 路径
 ```
 
@@ -92,6 +93,8 @@ jardec decompile [选项]
 对发生 Procyon 回退的类，`report.json` 还会提供 `procyonDiagnostics`：退出码、实际命令描述和受限的 stdout/stderr。默认临时工作区在完成后清理，并记录 `workspaceDisposition: "cleaned"`；传入 `--keep-temp` 时，失败重试的记录会包含保留的 `workspacePath`，可用于进一步检查工具输出。
 
 `procyonDiagnostics.elapsedMillis` 是单个回退 JVM 调用的耗时；总回退墙钟耗时仍记录在 `retryElapsedMillis`。若回退类很多，可从较小的 `--retry-concurrency` 开始，根据这两个指标和机器负载逐步调高。
+
+单个 Procyon 回退超过 `--procyon-timeout` 时，该类会以 `procyon_timeout` 失败并在诊断中记录 `timedOut` 与 `timeoutMillis`；其他候选类继续执行。Linux 上取消会覆盖该 JVM 的整个进程组，避免派生进程持有输出管道而阻塞收尾。
 
 ## 子命令一览
 

@@ -5,8 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -46,6 +49,45 @@ func TestCommandRunnerPropagatesContextDeadline(t *testing.T) {
 	})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Run() error = %v, want context deadline exceeded", err)
+	}
+}
+
+func TestCommandRunnerReturnsAfterCancellationWhenChildKeepsPipesOpen(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	startedAt := time.Now()
+	_, err := (CommandRunner{}).Run(ctx, CommandSpec{Path: "sh", Args: []string{"-c", "sleep 5 & wait"}})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run() error = %v, want context deadline exceeded", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > 2*time.Second {
+		t.Fatalf("Run() elapsed = %s, want bounded cancellation", elapsed)
+	}
+}
+
+func TestCommandRunnerCancelsLinuxProcessGroup(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("process-group assertion is Linux-specific")
+	}
+	pidPath := filepath.Join(t.TempDir(), "child.pid")
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	_, err := (CommandRunner{}).Run(ctx, CommandSpec{Path: "sh", Args: []string{"-c", "sleep 5 & echo $! > " + pidPath + "; wait"}})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Run() error = %v, want context deadline", err)
+	}
+	pidText, readErr := os.ReadFile(pidPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile(pid): %v", readErr)
+	}
+	pid, parseErr := strconv.Atoi(strings.TrimSpace(string(pidText)))
+	if parseErr != nil {
+		t.Fatalf("Atoi(pid): %v", parseErr)
+	}
+	if err := syscall.Kill(pid, 0); !errors.Is(err, syscall.ESRCH) {
+		t.Fatalf("child pid %d is still alive: %v", pid, err)
 	}
 }
 

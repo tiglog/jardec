@@ -227,3 +227,43 @@ base-ref: 465e66cc462900fc05b989a267367896a55b9253
 - 覆盖性：任务 1 覆盖 TempDir 创建、XDG 隔离与 JADX 启动诊断；任务 2 覆盖严格 classpath；任务 3 覆盖逐类耗时且不改变分类；任务 4 覆盖可选真实工具验证和文档。
 - 无占位符：每一步指定了测试位置、命令、预期结果和最小实现方向。
 - 类型一致性：任务 1 的 `JadxConfig.Env []string` 由 `ExecuteJadx` 生产并由 `RunJadx` 消费；任务 3 的 `RetryResult.ElapsedMillis int64` 映射为 `ProcyonDiagnostics.ElapsedMillis int64`。
+
+## 任务 5：单类 Procyon 超时边界
+
+**文件：**
+
+- 修改：`internal/cli/app.go`、`internal/cli/config.go`
+- 修改：`cmd/jardec/main.go`
+- 修改：`internal/pipeline/engine.go`、`internal/pipeline/retry.go`
+- 修改：`internal/report/report.go`
+- 测试：`internal/cli/app_test.go`、`internal/pipeline/retry_test.go`、`internal/pipeline/engine_test.go`
+
+**接口：**
+
+- 消费：`--procyon-timeout duration`，默认 `90s`，值必须大于零。
+- 产出：`Config.ProcyonTimeout time.Duration`、`ProcyonDiagnostics.TimedOut bool`、`TimeoutMillis int64` 和 retry outcome `procyon_timeout`。
+
+- [ ] **步骤 1：写失败测试**
+
+  在 CLI 测试验证默认 `90s`、显式 `250ms` 透传、`0s` 与负 duration 被拒绝。在 retry 测试使用会等待 `ctx.Done()` 的 runner，设置 `20ms` 后断言该类为 timeout；再添加第二个立即成功类，断言它仍完成。在 engine 测试断言 timeout 类为失败、`RetryOutcome == "procyon_timeout"`，且诊断包含 `TimedOut`、`TimeoutMillis == 20` 与非负耗时。
+
+- [ ] **步骤 2：运行失败测试**
+
+  运行：`go test ./internal/cli ./internal/pipeline -run 'Test(.*ProcyonTimeout|.*Timeout)' -count=1`
+
+  预期：失败，因为 CLI、配置、worker context 和报告尚未提供 timeout 语义。
+
+- [ ] **步骤 3：最小实现**
+
+  使用 `urfave/cli.DurationFlag` 定义 `--procyon-timeout`，默认 `90*time.Second`；在 CLI 校验中拒绝非正值。将该值透传到 `pipeline.Config`、`ProcyonRetryConfig`；`executeSingleRetry` 用 `context.WithTimeout(ctx, cfg.Timeout)` 调用 Procyon，并仅在子 context 的 `DeadlineExceeded` 时标记 `TimedOut`。将该结果映射为 `procyon_timeout` 和附加报告字段，其他 worker 不取消。
+
+- [ ] **步骤 4：验证并提交**
+
+  运行：`gofmt -w cmd/jardec/main.go internal/cli/app.go internal/cli/config.go internal/cli/app_test.go internal/pipeline/engine.go internal/pipeline/retry.go internal/pipeline/retry_test.go internal/pipeline/engine_test.go internal/report/report.go && go test ./... -count=1`
+
+  然后将 OpenSpec 5.1–5.3 勾为 `[x]`，更新 README 的 timeout 说明并提交：
+
+  ```bash
+  git add cmd/jardec/main.go internal/cli/app.go internal/cli/config.go internal/cli/app_test.go internal/pipeline/engine.go internal/pipeline/retry.go internal/pipeline/retry_test.go internal/pipeline/engine_test.go internal/report/report.go README.md
+  git commit -m "feat: bound per-class procyon retries"
+  ```

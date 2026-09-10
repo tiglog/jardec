@@ -26,6 +26,7 @@ type ProcyonRetryConfig struct {
 	InputJar       string
 	ExtraClasspath []string
 	Concurrency    int
+	Timeout        time.Duration
 }
 
 type RetryResult struct {
@@ -34,6 +35,7 @@ type RetryResult struct {
 	OutputDir     string
 	Command       string
 	ElapsedMillis int64
+	TimedOut      bool
 	Diagnostics   decompiler.RunResult
 	Err           error
 }
@@ -99,7 +101,14 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg Procy
 		Classpath: buildRetryClasspath(cfg.InputJar, cfg.ExtraClasspath),
 	}
 	startedAt := time.Now()
-	diagnostics, err := decompiler.RunProcyon(ctx, runner, procyonConfig)
+	retryCtx := ctx
+	cancel := func() {}
+	if cfg.Timeout > 0 {
+		retryCtx, cancel = context.WithTimeout(ctx, cfg.Timeout)
+	}
+	diagnostics, err := decompiler.RunProcyon(retryCtx, runner, procyonConfig)
+	timedOut := errors.Is(retryCtx.Err(), context.DeadlineExceeded)
+	cancel()
 
 	return RetryResult{
 		Class:         class,
@@ -107,6 +116,7 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg Procy
 		OutputDir:     outputDir,
 		Command:       decompiler.DescribeCommand(decompiler.ProcyonCommand(procyonConfig)),
 		ElapsedMillis: time.Since(startedAt).Milliseconds(),
+		TimedOut:      timedOut,
 		Diagnostics:   diagnostics,
 		Err:           err,
 	}

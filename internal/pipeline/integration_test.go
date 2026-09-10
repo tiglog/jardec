@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	ireport "jardec/internal/report"
 )
@@ -21,8 +22,8 @@ func TestRealToolDecompileIntegration(t *testing.T) {
 
 	root := t.TempDir()
 	outDir := filepath.Join(root, "out")
-	concurrency := min(runtime.NumCPU(), 8)
-	rep, err := (Engine{}).Run(context.Background(), Config{InputPath: jarPath, OutputDir: outDir, JadxPath: jadxPath, ProcyonPath: procyonPath, TempDir: filepath.Join(root, "work"), RetryConcurrency: concurrency})
+	concurrency := runtime.NumCPU()
+	rep, err := (Engine{}).Run(context.Background(), Config{InputPath: jarPath, OutputDir: outDir, JadxPath: jadxPath, ProcyonPath: procyonPath, TempDir: filepath.Join(root, "work"), RetryConcurrency: concurrency, ProcyonTimeout: time.Second})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

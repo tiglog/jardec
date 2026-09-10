@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"jardec/internal/decompiler"
 	jarpkg "jardec/internal/jar"
@@ -104,6 +105,25 @@ func TestExecuteProcyonRetriesBuildsInputJarFirstClasspath(t *testing.T) {
 	wantClasspath := strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator))
 	if got := gotSpec.Args[5]; got != wantClasspath {
 		t.Fatalf("classpath = %q, want %q", got, wantClasspath)
+	}
+}
+
+func TestExecuteProcyonRetriesTimesOutOneClassAndContinues(t *testing.T) {
+	t.Parallel()
+	jarPath := writePipelineJar(t, map[string]string{"com/example/Slow.class": "slow", "com/example/Fast.class": "fast"})
+	fake := &fakeRetryRunner{run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+		if strings.Contains(spec.Args[len(spec.Args)-1], "Slow.class") {
+			<-time.After(100 * time.Millisecond)
+		}
+		writePipelineFile(t, spec.Args[3], strings.TrimSuffix(filepath.Base(spec.Args[len(spec.Args)-1]), ".class")+".java", "class X {}")
+		return decompiler.RunResult{}, nil
+	}}
+	results, err := ExecuteProcyonRetries(context.Background(), fake, ProcyonRetryConfig{BaseTempDir: t.TempDir(), ProcyonPath: "/tools/procyon.jar", InputJar: jarPath, Concurrency: 1, Timeout: 20 * time.Millisecond}, []jarpkg.Class{{BinaryName: "Slow", EntryPath: "com/example/Slow.class", SourcePath: "Slow.java"}, {BinaryName: "Fast", EntryPath: "com/example/Fast.class", SourcePath: "Fast.java"}})
+	if err != nil {
+		t.Fatalf("ExecuteProcyonRetries() error = %v", err)
+	}
+	if !results[0].TimedOut || results[1].TimedOut {
+		t.Fatalf("timeout results = %+v", results)
 	}
 }
 

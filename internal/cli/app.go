@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"time"
 
 	urfavecli "github.com/urfave/cli/v2"
 )
@@ -105,6 +106,11 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 						Name:        "retry-concurrency",
 						Usage:       "Maximum concurrent procyon retry workers",
 						DefaultText: fmt.Sprintf("%d (CPU count)", runtime.NumCPU()),
+					},
+					&urfavecli.DurationFlag{
+						Name:  "procyon-timeout",
+						Usage: "Maximum duration for each procyon fallback invocation",
+						Value: 90 * time.Second,
 					},
 				},
 				Action: func(ctx *urfavecli.Context) error {

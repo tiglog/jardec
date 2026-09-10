@@ -2,6 +2,7 @@
 change: improve-decompile-runtime
 design-doc: docs/superpowers/specs/2026-09-10-improve-decompile-runtime-design.md
 base-ref: 465e66cc462900fc05b989a267367896a55b9253
+archived-with: 2026-09-10-improve-decompile-runtime
 ---
 
 # 反编译运行时可靠性与性能实施计划

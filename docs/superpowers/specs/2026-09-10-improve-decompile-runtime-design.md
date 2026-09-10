@@ -2,6 +2,8 @@
 cosp_change: improve-decompile-runtime
 role: technical-design
 canonical_spec: openspec
+archived-with: 2026-09-10-improve-decompile-runtime
+status: final
 ---
 
 # 反编译运行时可靠性与性能设计

@@ -14,16 +14,16 @@ import (
 )
 
 const (
-	defaultJadxBinary        = "jadx"
+	defaultJadxBinary    = "jadx"
 	defaultProcyonBinary = "procyon"
-	defaultJavacBinary      = "javac"
+	defaultJavacBinary   = "javac"
 )
 
 type Config struct {
 	InputPath        string
 	OutputDir        string
 	JadxPath         string
-	ProcyonPath   string
+	ProcyonPath      string
 	ExtraClasspath   []string
 	TempDir          string
 	KeepTemp         bool
@@ -35,7 +35,7 @@ func ConfigFromContext(ctx *urfavecli.Context) (Config, error) {
 		InputPath:        ctx.String("input"),
 		OutputDir:        ctx.String("output"),
 		JadxPath:         ctx.String("jadx-path"),
-		ProcyonPath:   ctx.String("procyon-path"),
+		ProcyonPath:      ctx.String("procyon-path"),
 		ExtraClasspath:   ctx.StringSlice("classpath"),
 		TempDir:          ctx.String("temp-dir"),
 		KeepTemp:         ctx.Bool("keep-temp"),
@@ -146,12 +146,22 @@ func isJarPath(path string) bool {
 func expandClasspathEntry(entry string) ([]string, error) {
 	info, err := os.Stat(entry)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, fmt.Errorf("stat classpath entry: %w", err)
-		}
-		return []string{entry}, nil
+		return nil, fmt.Errorf("stat classpath entry %q: %w", entry, err)
 	}
 	if !info.IsDir() {
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("classpath entry %q must be a regular jar file", entry)
+		}
+		if !isJarPath(entry) {
+			return nil, fmt.Errorf("classpath entry %q must have a .jar extension", entry)
+		}
+		file, err := os.Open(entry)
+		if err != nil {
+			return nil, fmt.Errorf("open classpath entry %q: %w", entry, err)
+		}
+		if err := file.Close(); err != nil {
+			return nil, fmt.Errorf("close classpath entry %q: %w", entry, err)
+		}
 		return []string{entry}, nil
 	}
 
@@ -165,7 +175,12 @@ func expandClasspathEntry(entry string) ([]string, error) {
 		if child.IsDir() || !isJarPath(child.Name()) {
 			continue
 		}
-		expanded = append(expanded, filepath.Join(entry, child.Name()))
+		childPath := filepath.Join(entry, child.Name())
+		childInfo, err := child.Info()
+		if err != nil || !childInfo.Mode().IsRegular() {
+			continue
+		}
+		expanded = append(expanded, childPath)
 	}
 	sort.Strings(expanded)
 	if len(expanded) == 0 {

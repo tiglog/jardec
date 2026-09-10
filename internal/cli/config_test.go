@@ -55,14 +55,15 @@ func TestValidateConfigExpandsConfigRelativeClasspathDirectory(t *testing.T) {
 		InputPath:      "sample.jar",
 		OutputDir:      "out",
 		JadxPath:       "/tools/jadx",
-		ProcyonPath:        "/tools/procyon",
+		ProcyonPath:    "/tools/procyon",
 		TempDir:        "/tmp/jardec",
 		KeepTemp:       true,
-		ExtraClasspath: []string{"/deps/cli.jar"},
+		ExtraClasspath: []string{filepath.Join(configDir, "cli.jar")},
 	}, ProjectConfig{
 		DecompileClasspath: []string{"libs"},
 		ConfigDir:          configDir,
 	})
+	mustWriteFile(t, filepath.Join(configDir, "cli.jar"))
 
 	validated, err := ValidateConfig(cfg, func(name string) (string, error) { return name, nil })
 	if err != nil {
@@ -72,7 +73,7 @@ func TestValidateConfigExpandsConfigRelativeClasspathDirectory(t *testing.T) {
 	if want := []string{
 		filepath.Join(configDir, "libs", "a.JAR"),
 		filepath.Join(configDir, "libs", "b.jar"),
-		"/deps/cli.jar",
+		filepath.Join(configDir, "cli.jar"),
 	}; !slices.Equal(validated.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", validated.ExtraClasspath, want)
 	}
@@ -88,7 +89,7 @@ func TestValidateConfigRejectsClasspathDirectoryWithoutJars(t *testing.T) {
 		InputPath:      "sample.jar",
 		OutputDir:      "out",
 		JadxPath:       "/tools/jadx",
-		ProcyonPath:        "/tools/procyon",
+		ProcyonPath:    "/tools/procyon",
 		ExtraClasspath: []string{emptyDir},
 	}, func(name string) (string, error) { return name, nil })
 	if err == nil {
@@ -114,20 +115,33 @@ func mustWriteFile(t *testing.T, path string) {
 	}
 }
 
-func TestValidateConfigAcceptsNonexistentClasspathFileEntry(t *testing.T) {
+func TestValidateConfigRejectsInvalidClasspathFileEntry(t *testing.T) {
 	t.Parallel()
 
+	nonJar := filepath.Join(t.TempDir(), "notes.txt")
+	mustWriteFile(t, nonJar)
+	for _, entry := range []string{filepath.Join(t.TempDir(), "missing.jar"), nonJar} {
+		_, err := ValidateConfig(Config{
+			InputPath: "sample.jar", OutputDir: "out", JadxPath: "/tools/jadx", ProcyonPath: "/tools/procyon", ExtraClasspath: []string{entry},
+		}, func(name string) (string, error) { return name, nil })
+		if err == nil || !strings.Contains(err.Error(), entry) {
+			t.Fatalf("ValidateConfig(%q) error = %v, want error containing entry", entry, err)
+		}
+	}
+}
+
+func TestValidateConfigAcceptsSingleJarClasspathEntry(t *testing.T) {
+	t.Parallel()
+
+	entry := filepath.Join(t.TempDir(), "valid.JAR")
+	mustWriteFile(t, entry)
 	cfg, err := ValidateConfig(Config{
-		InputPath:      "sample.jar",
-		OutputDir:      "out",
-		JadxPath:       "/tools/jadx",
-		ProcyonPath:        "/tools/procyon",
-		ExtraClasspath: []string{"/nonexistent/lib.jar"},
+		InputPath: "sample.jar", OutputDir: "out", JadxPath: "/tools/jadx", ProcyonPath: "/tools/procyon", ExtraClasspath: []string{entry},
 	}, func(name string) (string, error) { return name, nil })
 	if err != nil {
-		t.Fatalf("ValidateConfig() error = %v, want nil (nonexistent jar entries pass through)", err)
+		t.Fatalf("ValidateConfig() error = %v", err)
 	}
-	if !slices.Contains(cfg.ExtraClasspath, "/nonexistent/lib.jar") {
-		t.Fatalf("ExtraClasspath = %v, want /nonexistent/lib.jar preserved", cfg.ExtraClasspath)
+	if !slices.Equal(cfg.ExtraClasspath, []string{entry}) {
+		t.Fatalf("ExtraClasspath = %v, want [%s]", cfg.ExtraClasspath, entry)
 	}
 }

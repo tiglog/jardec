@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +13,14 @@ import (
 
 func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	t.Parallel()
+	depsDir := t.TempDir()
+	baseJar := filepath.Join(depsDir, "base.jar")
+	extraJar := filepath.Join(depsDir, "extra.jar")
+	for _, jar := range []string{baseJar, extraJar} {
+		if err := os.WriteFile(jar, []byte("jar"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+	}
 
 	var got Config
 	app := newAppWithDeps(func(_ context.Context, cfg Config) error {
@@ -30,8 +39,8 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 		"--output", "out",
 		"--jadx-path", "/tools/jadx",
 		"--procyon-path", "/tools/procyon",
-		"--classpath", "/deps/base.jar",
-		"--classpath", "/deps/extra.jar",
+		"--classpath", baseJar,
+		"--classpath", extraJar,
 		"--temp-dir", "/tmp/jardec",
 		"--keep-temp",
 		"--retry-concurrency", "5",
@@ -61,7 +70,7 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	if got.RetryConcurrency != 5 {
 		t.Fatalf("RetryConcurrency = %d, want 5", got.RetryConcurrency)
 	}
-	if want := []string{"/deps/base.jar", "/deps/extra.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+	if want := []string{baseJar, extraJar}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
 }
@@ -168,6 +177,14 @@ func TestNewAppReportsBinaryLookupFailures(t *testing.T) {
 
 func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	t.Parallel()
+	depsDir := t.TempDir()
+	baseJar := filepath.Join(depsDir, "base.jar")
+	sharedJar := filepath.Join(depsDir, "shared.jar")
+	for _, jar := range []string{baseJar, sharedJar} {
+		if err := os.WriteFile(jar, []byte("jar"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+	}
 
 	var got Config
 	app := newAppWithDeps(func(_ context.Context, cfg Config) error {
@@ -178,8 +195,8 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	}, func() (ProjectConfig, error) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
-			ProcyonPath:                 "/config/procyon",
-			DecompileClasspath:      []string{"/deps/base.jar", "/deps/shared.jar"},
+			ProcyonPath:             "/config/procyon",
+			DecompileClasspath:      []string{baseJar, sharedJar},
 			DefaultRetryConcurrency: 7,
 		}, nil
 	})
@@ -203,13 +220,22 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	if got.RetryConcurrency != 7 {
 		t.Fatalf("RetryConcurrency = %d, want 7", got.RetryConcurrency)
 	}
-	if want := []string{"/deps/base.jar", "/deps/shared.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+	if want := []string{baseJar, sharedJar}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
 }
 
 func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	t.Parallel()
+	depsDir := t.TempDir()
+	baseJar := filepath.Join(depsDir, "base.jar")
+	sharedJar := filepath.Join(depsDir, "shared.jar")
+	cliJar := filepath.Join(depsDir, "cli.jar")
+	for _, jar := range []string{baseJar, sharedJar, cliJar} {
+		if err := os.WriteFile(jar, []byte("jar"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+	}
 
 	var got Config
 	app := newAppWithDeps(func(_ context.Context, cfg Config) error {
@@ -220,8 +246,8 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	}, func() (ProjectConfig, error) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
-			ProcyonPath:                 "/config/procyon",
-			DecompileClasspath:      []string{"/deps/base.jar", "/deps/shared.jar"},
+			ProcyonPath:             "/config/procyon",
+			DecompileClasspath:      []string{baseJar, sharedJar},
 			DefaultRetryConcurrency: 7,
 		}, nil
 	})
@@ -233,8 +259,8 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 		"--output", "out",
 		"--jadx-path", "/flag/jadx",
 		"--procyon-path", "/flag/procyon",
-		"--classpath", "/deps/shared.jar",
-		"--classpath", "/deps/cli.jar",
+		"--classpath", sharedJar,
+		"--classpath", cliJar,
 		"--retry-concurrency", "3",
 	})
 	if err != nil {
@@ -250,7 +276,7 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	if got.RetryConcurrency != 3 {
 		t.Fatalf("RetryConcurrency = %d, want 3", got.RetryConcurrency)
 	}
-	if want := []string{"/deps/base.jar", "/deps/shared.jar", "/deps/cli.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+	if want := []string{baseJar, sharedJar, cliJar}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
 }
@@ -266,6 +292,10 @@ func TestNewAppExpandsClasspathDirectoryFlags(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(depsDir, filepath.FromSlash(name)), []byte("x"), 0o644); err != nil {
 			t.Fatalf("WriteFile(%q) error = %v", name, err)
 		}
+	}
+	explicitJar := filepath.Join(depsDir, "explicit.jar")
+	if err := os.WriteFile(explicitJar, []byte("x"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
 	}
 
 	var got Config
@@ -284,7 +314,7 @@ func TestNewAppExpandsClasspathDirectoryFlags(t *testing.T) {
 		"--input", "sample.jar",
 		"--output", "out",
 		"--classpath", depsDir,
-		"--classpath", "/deps/explicit.jar",
+		"--classpath", explicitJar,
 	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
@@ -293,7 +323,7 @@ func TestNewAppExpandsClasspathDirectoryFlags(t *testing.T) {
 	if want := []string{
 		filepath.Join(depsDir, "a.jar"),
 		filepath.Join(depsDir, "b.jar"),
-		"/deps/explicit.jar",
+		explicitJar,
 	}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
@@ -528,6 +558,13 @@ func TestPatchSourcesCommandParsesOptionsIntoSourcePatchConfig(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	classpathA := filepath.Join(dir, "a.jar")
+	classpathB := filepath.Join(dir, "b.jar")
+	for _, jar := range []string{classpathA, classpathB} {
+		if err := os.WriteFile(jar, []byte("jar"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+	}
 	inputJar := filepath.Join(dir, "sample.jar")
 	if err := os.WriteFile(inputJar, []byte("jar"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -561,8 +598,8 @@ func TestPatchSourcesCommandParsesOptionsIntoSourcePatchConfig(t *testing.T) {
 		"--output-jar", filepath.Join(dir, "patched.jar"),
 		"--class", "com.example.Foo",
 		"--javac-path", "/tools/javac",
-		"--classpath", "/deps/a.jar",
-		"--classpath", "/deps/b.jar",
+		"--classpath", classpathA,
+		"--classpath", classpathB,
 	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
@@ -583,7 +620,7 @@ func TestPatchSourcesCommandParsesOptionsIntoSourcePatchConfig(t *testing.T) {
 	if got.JavacPath != "/tools/javac" {
 		t.Fatalf("JavacPath = %q, want /tools/javac", got.JavacPath)
 	}
-	if want := []string{"/deps/a.jar", "/deps/b.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+	if want := []string{classpathA, classpathB}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
 }
@@ -681,8 +718,12 @@ func TestNewAppUsesExplicitConfigFlagForDecompile(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	libJar := filepath.Join(dir, "lib.jar")
+	if err := os.WriteFile(libJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 	configPath := filepath.Join(dir, "prod.yaml")
-	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\nprocyon_path: /explicit/procyon\ndecompile_classpath:\n  - /explicit/lib.jar\n"), 0o644)
+	err := os.WriteFile(configPath, []byte(fmt.Sprintf("jadx_path: /explicit/jadx\nprocyon_path: /explicit/procyon\ndecompile_classpath:\n  - %s\n", libJar)), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -714,7 +755,7 @@ func TestNewAppUsesExplicitConfigFlagForDecompile(t *testing.T) {
 	if got.ProcyonPath != "/explicit/procyon" {
 		t.Fatalf("ProcyonPath = %q, want /explicit/procyon", got.ProcyonPath)
 	}
-	if want := []string{"/explicit/lib.jar"}; !slices.Equal(got.ExtraClasspath, want) {
+	if want := []string{libJar}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
 	}
 }

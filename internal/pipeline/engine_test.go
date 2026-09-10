@@ -311,6 +311,9 @@ func TestEngineMarksUnrecoverableRetryOutputAsFailure(t *testing.T) {
 	if diagnostics.ExitCode != 17 || diagnostics.Stdout != "procyon stdout" || diagnostics.Stderr != "procyon stderr" {
 		t.Fatalf("ProcyonDiagnostics = %+v, want exit code and tool streams", diagnostics)
 	}
+	if diagnostics.ElapsedMillis < 0 {
+		t.Fatalf("ProcyonDiagnostics.ElapsedMillis = %d, want non-negative", diagnostics.ElapsedMillis)
+	}
 	if !strings.Contains(diagnostics.Command, "java -jar /tools/procyon.jar") {
 		t.Fatalf("ProcyonDiagnostics.Command = %q, want Procyon command", diagnostics.Command)
 	}

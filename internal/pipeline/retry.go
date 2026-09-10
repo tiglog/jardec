@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"jardec/internal/decompiler"
 	jarpkg "jardec/internal/jar"
@@ -28,12 +29,13 @@ type ProcyonRetryConfig struct {
 }
 
 type RetryResult struct {
-	Class       jarpkg.Class
-	RootDir     string
-	OutputDir   string
-	Command     string
-	Diagnostics decompiler.RunResult
-	Err         error
+	Class         jarpkg.Class
+	RootDir       string
+	OutputDir     string
+	Command       string
+	ElapsedMillis int64
+	Diagnostics   decompiler.RunResult
+	Err           error
 }
 
 func ExecuteProcyonRetries(ctx context.Context, runner decompiler.Runner, cfg ProcyonRetryConfig, classes []jarpkg.Class) ([]RetryResult, error) {
@@ -96,15 +98,17 @@ func executeSingleRetry(ctx context.Context, runner decompiler.Runner, cfg Procy
 		OutputDir: outputDir,
 		Classpath: buildRetryClasspath(cfg.InputJar, cfg.ExtraClasspath),
 	}
+	startedAt := time.Now()
 	diagnostics, err := decompiler.RunProcyon(ctx, runner, procyonConfig)
 
 	return RetryResult{
-		Class:       class,
-		RootDir:     rootDir,
-		OutputDir:   outputDir,
-		Command:     decompiler.DescribeCommand(decompiler.ProcyonCommand(procyonConfig)),
-		Diagnostics: diagnostics,
-		Err:         err,
+		Class:         class,
+		RootDir:       rootDir,
+		OutputDir:     outputDir,
+		Command:       decompiler.DescribeCommand(decompiler.ProcyonCommand(procyonConfig)),
+		ElapsedMillis: time.Since(startedAt).Milliseconds(),
+		Diagnostics:   diagnostics,
+		Err:           err,
 	}
 }
 

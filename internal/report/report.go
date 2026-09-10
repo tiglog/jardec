@@ -40,6 +40,7 @@ type ProcyonDiagnostics struct {
 	Stderr               string `json:"stderr,omitempty"`
 	WorkspaceDisposition string `json:"workspaceDisposition"`
 	WorkspacePath        string `json:"workspacePath,omitempty"`
+	ElapsedMillis        int64  `json:"elapsedMillis"`
 }
 
 type Report struct {

@@ -44,10 +44,10 @@ func TestExecuteProcyonRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 	}
 
 	results, err := ExecuteProcyonRetries(context.Background(), fake, ProcyonRetryConfig{
-		BaseTempDir:    t.TempDir(),
+		BaseTempDir: t.TempDir(),
 		ProcyonPath: "/tools/procyon.jar",
-		InputJar:       jarPath,
-		Concurrency:    2,
+		InputJar:    jarPath,
+		Concurrency: 2,
 	}, []jarpkg.Class{
 		{BinaryName: "com.example.Bar", EntryPath: "com/example/Bar.class", SourcePath: "com/example/Bar.java"},
 		{BinaryName: "com.example.Foo", EntryPath: "com/example/Foo.class", SourcePath: "com/example/Foo.java"},
@@ -60,6 +60,11 @@ func TestExecuteProcyonRetriesCreatesIsolatedWorkspaces(t *testing.T) {
 	}
 	if results[0].RootDir == results[1].RootDir {
 		t.Fatal("expected isolated retry workspaces, got shared root directory")
+	}
+	for _, result := range results {
+		if result.ElapsedMillis < 0 {
+			t.Fatalf("ElapsedMillis = %d, want non-negative", result.ElapsedMillis)
+		}
 	}
 }
 
@@ -82,7 +87,7 @@ func TestExecuteProcyonRetriesBuildsInputJarFirstClasspath(t *testing.T) {
 
 	results, err := ExecuteProcyonRetries(context.Background(), fake, ProcyonRetryConfig{
 		BaseTempDir:    t.TempDir(),
-		ProcyonPath: "/tools/procyon.jar",
+		ProcyonPath:    "/tools/procyon.jar",
 		InputJar:       jarPath,
 		ExtraClasspath: []string{"/deps/base.jar", jarPath, "/deps/cli.jar"},
 		Concurrency:    1,
@@ -121,7 +126,7 @@ func TestExecuteProcyonRetriesPreservesExpandedClasspathOrdering(t *testing.T) {
 
 	_, err := ExecuteProcyonRetries(context.Background(), fake, ProcyonRetryConfig{
 		BaseTempDir:    t.TempDir(),
-		ProcyonPath: "/tools/procyon.jar",
+		ProcyonPath:    "/tools/procyon.jar",
 		InputJar:       jarPath,
 		ExtraClasspath: []string{"/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar", "/deps/dir/a.jar"},
 		Concurrency:    1,

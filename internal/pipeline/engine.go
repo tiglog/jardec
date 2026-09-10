@@ -142,6 +142,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 				Stderr:               decompiler.TruncateDiagnostic(result.Diagnostics.Stderr),
 				WorkspaceDisposition: workspaceDisposition,
 				WorkspacePath:        workspacePath,
+				ElapsedMillis:        result.ElapsedMillis,
 			},
 		}
 

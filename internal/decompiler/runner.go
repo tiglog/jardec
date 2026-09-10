@@ -81,6 +81,7 @@ type JadxConfig struct {
 	BinaryPath string
 	InputJar   string
 	OutputDir  string
+	Env        []string
 }
 
 type ProcyonConfig struct {
@@ -91,10 +92,15 @@ type ProcyonConfig struct {
 }
 
 func RunJadx(ctx context.Context, runner Runner, cfg JadxConfig) (RunResult, error) {
-	return runner.Run(ctx, CommandSpec{
+	return runner.Run(ctx, JadxCommand(cfg))
+}
+
+func JadxCommand(cfg JadxConfig) CommandSpec {
+	return CommandSpec{
 		Path: cfg.BinaryPath,
 		Args: []string{"-d", cfg.OutputDir, cfg.InputJar},
-	})
+		Env:  cfg.Env,
+	}
 }
 
 func RunProcyon(ctx context.Context, runner Runner, cfg ProcyonConfig) (RunResult, error) {

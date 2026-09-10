@@ -137,6 +137,82 @@ func TestEngineStopsBeforeJadxWhenProcyonPreflightFails(t *testing.T) {
 	}
 }
 
+func TestEngineCreatesMissingTempRootBeforeRunningTools(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{"com/example/Foo.class": "foo"})
+	tempDir := filepath.Join(t.TempDir(), "new", "work")
+	preflightCalled := false
+	jadxCalled := false
+	engine := Engine{
+		JadxRunner: &scriptedRunner{run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
+			jadxCalled = true
+			writePipelineFile(t, spec.Args[1], "sources/com/example/Foo.java", "class Foo {}\n")
+			return decompiler.RunResult{}, nil
+		}},
+		ProcyonRunner: &scriptedRunner{preflight: func(decompiler.CommandSpec) (decompiler.RunResult, error) {
+			preflightCalled = true
+			return decompiler.RunResult{}, nil
+		}},
+	}
+	_, err := engine.Run(context.Background(), Config{InputPath: jarPath, OutputDir: t.TempDir(), JadxPath: "/tools/jadx", ProcyonPath: "/tools/procyon.jar", TempDir: tempDir, RetryConcurrency: 1})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if !preflightCalled || !jadxCalled {
+		t.Fatalf("tool calls: preflight=%t, jadx=%t, want both true", preflightCalled, jadxCalled)
+	}
+	if info, err := os.Stat(tempDir); err != nil || !info.IsDir() {
+		t.Fatalf("TempDir %q = %v, want existing directory", tempDir, err)
+	}
+}
+
+func TestEngineRejectsUncreatableTempRootBeforeRunningTools(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{"com/example/Foo.class": "foo"})
+	tempRoot := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(tempRoot, []byte("file"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	called := false
+	runner := &scriptedRunner{run: func(decompiler.CommandSpec) (decompiler.RunResult, error) {
+		called = true
+		return decompiler.RunResult{}, nil
+	}, preflight: func(decompiler.CommandSpec) (decompiler.RunResult, error) {
+		called = true
+		return decompiler.RunResult{}, nil
+	}}
+	_, err := (Engine{JadxRunner: runner, ProcyonRunner: runner}).Run(context.Background(), Config{InputPath: jarPath, OutputDir: t.TempDir(), JadxPath: "/tools/jadx", ProcyonPath: "/tools/procyon.jar", TempDir: tempRoot, RetryConcurrency: 1})
+	if err == nil || !strings.Contains(err.Error(), tempRoot) {
+		t.Fatalf("Run() error = %v, want temp root path", err)
+	}
+	if called {
+		t.Fatal("a tool ran despite an uncreatable temporary root")
+	}
+}
+
+func TestEngineReportsJadxStartupDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	jarPath := writePipelineJar(t, map[string]string{"com/example/Foo.class": "foo"})
+	engine := Engine{
+		JadxRunner: &scriptedRunner{run: func(decompiler.CommandSpec) (decompiler.RunResult, error) {
+			return decompiler.RunResult{Stdout: "jadx stdout", Stderr: "jadx stderr", ExitCode: 12}, errors.New("jadx failed")
+		}},
+		ProcyonRunner: &scriptedRunner{},
+	}
+	_, err := engine.Run(context.Background(), Config{InputPath: jarPath, OutputDir: t.TempDir(), JadxPath: "/tools/jadx", ProcyonPath: "/tools/procyon.jar", RetryConcurrency: 1})
+	if err == nil {
+		t.Fatal("Run() error = nil, want JADX startup failure")
+	}
+	for _, want := range []string{"exit code 12", "jadx stdout", "jadx stderr", "/tools/jadx -d"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("Run() error = %q, want substring %q", err, want)
+		}
+	}
+}
+
 func TestEngineMarksAmbiguousRetryOutputAsFailure(t *testing.T) {
 	t.Parallel()
 

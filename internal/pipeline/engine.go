@@ -44,6 +44,11 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 	if cfg.RetryConcurrency <= 0 {
 		cfg.RetryConcurrency = 1
 	}
+	if cfg.TempDir != "" {
+		if err := os.MkdirAll(cfg.TempDir, 0o755); err != nil {
+			return ireport.Report{}, fmt.Errorf("create temp directory %q: %w", cfg.TempDir, err)
+		}
+	}
 	preflightResult, err := decompiler.RunProcyonPreflight(ctx, e.ProcyonRunner, cfg.ProcyonPath)
 	if err != nil {
 		return ireport.Report{}, formatProcyonPreflightError(preflightResult)
@@ -63,7 +68,7 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 		InputJar:    cfg.InputPath,
 	})
 	if err != nil {
-		return ireport.Report{}, err
+		return ireport.Report{}, formatJadxError(jadxWorkspace.Command, jadxWorkspace.Diagnostics)
 	}
 	if !cfg.KeepTemp && jadxWorkspace.RootDir != "" {
 		defer os.RemoveAll(jadxWorkspace.RootDir)
@@ -202,6 +207,20 @@ func (e Engine) Run(ctx context.Context, cfg Config) (ireport.Report, error) {
 
 func formatProcyonPreflightError(result decompiler.RunResult) error {
 	message := fmt.Sprintf("procyon preflight failed (exit code %d)", result.ExitCode)
+	if stdout := decompiler.TruncateDiagnostic(result.Stdout); stdout != "" {
+		message += fmt.Sprintf("\nstdout:\n%s", stdout)
+	}
+	if stderr := decompiler.TruncateDiagnostic(result.Stderr); stderr != "" {
+		message += fmt.Sprintf("\nstderr:\n%s", stderr)
+	}
+	return errors.New(message)
+}
+
+func formatJadxError(command string, result decompiler.RunResult) error {
+	message := fmt.Sprintf("jadx execution failed (exit code %d)", result.ExitCode)
+	if command != "" {
+		message += fmt.Sprintf("\ncommand:\n%s", command)
+	}
 	if stdout := decompiler.TruncateDiagnostic(result.Stdout); stdout != "" {
 		message += fmt.Sprintf("\nstdout:\n%s", stdout)
 	}

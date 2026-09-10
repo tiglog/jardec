@@ -71,6 +71,25 @@ func TestRunJadxBuildsExpectedCommand(t *testing.T) {
 	}
 }
 
+func TestRunJadxPassesConfiguredEnvironment(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeRunner{}
+	_, err := RunJadx(context.Background(), fake, JadxConfig{
+		BinaryPath: "/tools/jadx",
+		InputJar:   "sample.jar",
+		OutputDir:  "out",
+		Env:        []string{"XDG_CONFIG_HOME=/tmp/config", "XDG_CACHE_HOME=/tmp/cache"},
+	})
+	if err != nil {
+		t.Fatalf("RunJadx() error = %v", err)
+	}
+	want := []string{"XDG_CONFIG_HOME=/tmp/config", "XDG_CACHE_HOME=/tmp/cache"}
+	if !slices.Equal(fake.spec.Env, want) {
+		t.Fatalf("Env = %v, want %v", fake.spec.Env, want)
+	}
+}
+
 func TestRunProcyonBuildsExpectedCommand(t *testing.T) {
 	t.Parallel()
 

@@ -19,6 +19,7 @@ type JadxWorkspace struct {
 	OutputDir    string
 	SourcesDir   string
 	ResourcesDir string
+	Command      string
 	Diagnostics  decompiler.RunResult
 }
 
@@ -40,18 +41,32 @@ func ExecuteJadx(ctx context.Context, runner decompiler.Runner, cfg JadxWorkspac
 	if err := os.MkdirAll(resourcesDir, 0o755); err != nil {
 		return JadxWorkspace{}, err
 	}
+	xdgConfigDir := filepath.Join(rootDir, "xdg-config")
+	if err := os.MkdirAll(xdgConfigDir, 0o755); err != nil {
+		return JadxWorkspace{}, err
+	}
+	xdgCacheDir := filepath.Join(rootDir, "xdg-cache")
+	if err := os.MkdirAll(xdgCacheDir, 0o755); err != nil {
+		return JadxWorkspace{}, err
+	}
 
-	result, err := decompiler.RunJadx(ctx, runner, decompiler.JadxConfig{
+	jadxConfig := decompiler.JadxConfig{
 		BinaryPath: cfg.JadxPath,
 		InputJar:   cfg.InputJar,
 		OutputDir:  outputDir,
-	})
+		Env: []string{
+			"XDG_CONFIG_HOME=" + xdgConfigDir,
+			"XDG_CACHE_HOME=" + xdgCacheDir,
+		},
+	}
+	result, err := decompiler.RunJadx(ctx, runner, jadxConfig)
 
 	return JadxWorkspace{
 		RootDir:      rootDir,
 		OutputDir:    outputDir,
 		SourcesDir:   sourcesDir,
 		ResourcesDir: resourcesDir,
+		Command:      decompiler.DescribeCommand(decompiler.JadxCommand(jadxConfig)),
 		Diagnostics:  result,
 	}, err
 }

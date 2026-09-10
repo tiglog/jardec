@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"jardec/internal/decompiler"
@@ -20,6 +21,19 @@ func TestExecuteJadxCreatesWorkspaceAndCapturesDiagnostics(t *testing.T) {
 			}
 			if len(spec.Args) != 3 || spec.Args[0] != "-d" || spec.Args[2] != "input.jar" {
 				t.Fatalf("Args = %v, want ['-d' <out> 'input.jar']", spec.Args)
+			}
+			workspaceRoot := filepath.Dir(spec.Args[1])
+			wantEnv := []string{
+				"XDG_CONFIG_HOME=" + filepath.Join(workspaceRoot, "xdg-config"),
+				"XDG_CACHE_HOME=" + filepath.Join(workspaceRoot, "xdg-cache"),
+			}
+			if !slices.Equal(spec.Env, wantEnv) {
+				t.Fatalf("Env = %v, want %v", spec.Env, wantEnv)
+			}
+			for _, dir := range []string{filepath.Join(workspaceRoot, "xdg-config"), filepath.Join(workspaceRoot, "xdg-cache")} {
+				if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+					t.Fatalf("XDG directory %q = %v, want existing directory", dir, err)
+				}
 			}
 			outputDir := spec.Args[1]
 			if err := os.WriteFile(filepath.Join(outputDir, "sources", "marker.txt"), []byte("ok"), 0o644); err != nil {

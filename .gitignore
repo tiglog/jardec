@@ -23,11 +23,13 @@ AGENTS.md
 CLAUDE.md
 .opencode/
 .codex/
+.superpowers/
 openspec/
-docs/*.md
+docs/superpowers/
 
 # Local config
 /config.yaml
 
 # misc
 .github/
+

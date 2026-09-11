@@ -43,6 +43,8 @@ func TestValidateConfigExpandsConfigRelativeClasspathDirectory(t *testing.T) {
 	t.Parallel()
 
 	configDir := t.TempDir()
+	procyonJar := filepath.Join(configDir, "procyon.jar")
+	mustWriteFile(t, procyonJar)
 	depsDir := filepath.Join(configDir, "libs")
 	mustMkdirAll(t, depsDir)
 	mustWriteFile(t, filepath.Join(depsDir, "b.jar"))
@@ -55,7 +57,7 @@ func TestValidateConfigExpandsConfigRelativeClasspathDirectory(t *testing.T) {
 		InputPath:      "sample.jar",
 		OutputDir:      "out",
 		JadxPath:       "/tools/jadx",
-		ProcyonPath:    "/tools/procyon",
+		ProcyonPath:    procyonJar,
 		TempDir:        "/tmp/jardec",
 		KeepTemp:       true,
 		ExtraClasspath: []string{filepath.Join(configDir, "cli.jar")},
@@ -100,6 +102,52 @@ func TestValidateConfigRejectsClasspathDirectoryWithoutJars(t *testing.T) {
 	}
 }
 
+func TestValidateConfigRequiresReadableProcyonJar(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.jar")
+	nonJar := filepath.Join(t.TempDir(), "procyon")
+	mustWriteFile(t, nonJar)
+	valid := filepath.Join(t.TempDir(), "procyon.jar")
+	mustWriteFile(t, valid)
+	unreadable := filepath.Join(t.TempDir(), "unreadable.jar")
+	mustWriteFile(t, unreadable)
+	if err := os.Chmod(unreadable, 0o000); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o644) })
+
+	tests := []struct {
+		name        string
+		procyonPath string
+		wantErr     string
+	}{
+		{name: "missing configuration", wantErr: "procyon jar path is required"},
+		{name: "missing jar", procyonPath: missing, wantErr: missing},
+		{name: "non jar", procyonPath: nonJar, wantErr: ".jar extension"},
+		{name: "unreadable jar", procyonPath: unreadable, wantErr: unreadable},
+		{name: "valid jar", procyonPath: valid},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := ValidateConfig(Config{
+				InputPath: "sample.jar", OutputDir: "out", JadxPath: "/tools/jadx", ProcyonPath: tt.procyonPath,
+			}, func(name string) (string, error) { return name, nil })
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("ValidateConfig() error = %v, want error containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ValidateConfig() error = %v", err)
+			}
+			if cfg.ProcyonPath != valid {
+				t.Fatalf("ProcyonPath = %q, want %q", cfg.ProcyonPath, valid)
+			}
+		})
+	}
+}
+
 func mustMkdirAll(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(path, 0o755); err != nil {
@@ -135,8 +183,10 @@ func TestValidateConfigAcceptsSingleJarClasspathEntry(t *testing.T) {
 
 	entry := filepath.Join(t.TempDir(), "valid.JAR")
 	mustWriteFile(t, entry)
+	procyonJar := filepath.Join(t.TempDir(), "procyon.jar")
+	mustWriteFile(t, procyonJar)
 	cfg, err := ValidateConfig(Config{
-		InputPath: "sample.jar", OutputDir: "out", JadxPath: "/tools/jadx", ProcyonPath: "/tools/procyon", ExtraClasspath: []string{entry},
+		InputPath: "sample.jar", OutputDir: "out", JadxPath: "/tools/jadx", ProcyonPath: procyonJar, ExtraClasspath: []string{entry},
 	}, func(name string) (string, error) { return name, nil })
 	if err != nil {
 		t.Fatalf("ValidateConfig() error = %v", err)

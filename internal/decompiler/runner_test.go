@@ -160,11 +160,13 @@ func TestRunProcyonBuildsExpectedCommand(t *testing.T) {
 	want := []string{
 		"-jar", "/tools/procyon.jar",
 		"-o", "out",
-		"--classpath", strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator)),
 		filepath.Join("tmp", "Foo.class"),
 	}
 	if !slices.Equal(fake.spec.Args, want) {
 		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
+	}
+	if wantEnv := []string{"CLASSPATH=" + strings.Join([]string{"input.jar", "/deps/a.jar"}, string(os.PathListSeparator))}; !slices.Equal(fake.spec.Env, wantEnv) {
+		t.Fatalf("Env = %v, want %v", fake.spec.Env, wantEnv)
 	}
 }
 
@@ -188,6 +190,9 @@ func TestRunProcyonOmitsClasspathWhenEmpty(t *testing.T) {
 	}
 	if !slices.Equal(fake.spec.Args, want) {
 		t.Fatalf("Args = %v, want %v", fake.spec.Args, want)
+	}
+	if len(fake.spec.Env) != 0 {
+		t.Fatalf("Env = %v, want no configured environment", fake.spec.Env)
 	}
 }
 

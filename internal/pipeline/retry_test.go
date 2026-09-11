@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -102,9 +103,12 @@ func TestExecuteProcyonRetriesBuildsInputJarFirstClasspath(t *testing.T) {
 		t.Fatalf("len(results) = %d, want 1", len(results))
 	}
 
-	wantClasspath := strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator))
-	if got := gotSpec.Args[5]; got != wantClasspath {
-		t.Fatalf("classpath = %q, want %q", got, wantClasspath)
+	wantClasspath := "CLASSPATH=" + strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator))
+	if !slices.Equal(gotSpec.Env, []string{wantClasspath}) {
+		t.Fatalf("Env = %v, want [%q]", gotSpec.Env, wantClasspath)
+	}
+	if got := gotSpec.Args[len(gotSpec.Args)-1]; !strings.HasSuffix(got, filepath.Join("classes", "com", "example", "Foo.class")) {
+		t.Fatalf("class input = %q, want extracted Foo.class", got)
 	}
 }
 
@@ -157,9 +161,9 @@ func TestExecuteProcyonRetriesPreservesExpandedClasspathOrdering(t *testing.T) {
 		t.Fatalf("ExecuteProcyonRetries() error = %v", err)
 	}
 
-	wantClasspath := strings.Join([]string{jarPath, "/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar"}, string(os.PathListSeparator))
-	if got := gotSpec.Args[5]; got != wantClasspath {
-		t.Fatalf("classpath = %q, want %q", got, wantClasspath)
+	wantClasspath := "CLASSPATH=" + strings.Join([]string{jarPath, "/deps/dir/a.jar", "/deps/dir/b.jar", "/deps/explicit.jar"}, string(os.PathListSeparator))
+	if !slices.Equal(gotSpec.Env, []string{wantClasspath}) {
+		t.Fatalf("Env = %v, want [%q]", gotSpec.Env, wantClasspath)
 	}
 }
 

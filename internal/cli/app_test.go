@@ -69,7 +69,8 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	depsDir := t.TempDir()
 	baseJar := filepath.Join(depsDir, "base.jar")
 	extraJar := filepath.Join(depsDir, "extra.jar")
-	for _, jar := range []string{baseJar, extraJar} {
+	procyonJar := filepath.Join(depsDir, "procyon.jar")
+	for _, jar := range []string{baseJar, extraJar, procyonJar} {
 		if err := os.WriteFile(jar, []byte("jar"), 0o644); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
@@ -91,7 +92,7 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/tools/jadx",
-		"--procyon-path", "/tools/procyon",
+		"--procyon-path", procyonJar,
 		"--classpath", baseJar,
 		"--classpath", extraJar,
 		"--temp-dir", "/tmp/jardec",
@@ -111,8 +112,8 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	if got.JadxPath != "/tools/jadx" {
 		t.Fatalf("JadxPath = %q, want /tools/jadx", got.JadxPath)
 	}
-	if got.ProcyonPath != "/tools/procyon" {
-		t.Fatalf("ProcyonPath = %q, want /tools/procyon", got.ProcyonPath)
+	if got.ProcyonPath != procyonJar {
+		t.Fatalf("ProcyonPath = %q, want %q", got.ProcyonPath, procyonJar)
 	}
 	if got.TempDir != "/tmp/jardec" {
 		t.Fatalf("TempDir = %q, want /tmp/jardec", got.TempDir)
@@ -125,6 +126,21 @@ func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	}
 	if want := []string{baseJar, extraJar}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
+	}
+}
+
+func TestDecompileHelpDescribesProcyonJarRequirement(t *testing.T) {
+	t.Parallel()
+
+	app := newAppWithDeps(nil, nil, nil, nil)
+	var output bytes.Buffer
+	app.Writer = &output
+
+	if err := app.RunContext(context.Background(), []string{"jardec", "decompile", "--help"}); err != nil {
+		t.Fatalf("RunContext() error = %v", err)
+	}
+	if !strings.Contains(output.String(), "Path to the readable Procyon JAR required for fallback") {
+		t.Fatalf("help output = %q, want Procyon JAR requirement", output.String())
 	}
 }
 
@@ -175,6 +191,10 @@ func TestRootCommandDoesNotRunDecompile(t *testing.T) {
 func TestNewAppUsesExplicitBinaryOverrides(t *testing.T) {
 	t.Parallel()
 
+	procyonJar := filepath.Join(t.TempDir(), "procyon.jar")
+	if err := os.WriteFile(procyonJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 	var lookedUp []string
 	app := newAppWithDeps(func(_ context.Context, _ Config) error {
 		return nil
@@ -191,13 +211,13 @@ func TestNewAppUsesExplicitBinaryOverrides(t *testing.T) {
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/custom/jadx",
-		"--procyon-path", "/custom/procyon",
+		"--procyon-path", procyonJar,
 	})
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}
 
-	want := []string{"/custom/jadx", "java", "/custom/procyon"}
+	want := []string{"/custom/jadx", "java"}
 	if !slices.Equal(lookedUp, want) {
 		t.Fatalf("lookup calls = %v, want %v", lookedUp, want)
 	}
@@ -233,7 +253,8 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	depsDir := t.TempDir()
 	baseJar := filepath.Join(depsDir, "base.jar")
 	sharedJar := filepath.Join(depsDir, "shared.jar")
-	for _, jar := range []string{baseJar, sharedJar} {
+	procyonJar := filepath.Join(depsDir, "procyon.jar")
+	for _, jar := range []string{baseJar, sharedJar, procyonJar} {
 		if err := os.WriteFile(jar, []byte("jar"), 0o644); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
@@ -248,7 +269,7 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	}, func() (ProjectConfig, error) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
-			ProcyonPath:             "/config/procyon",
+			ProcyonPath:             procyonJar,
 			DecompileClasspath:      []string{baseJar, sharedJar},
 			DefaultRetryConcurrency: 7,
 		}, nil
@@ -267,8 +288,8 @@ func TestNewAppUsesConfigFileDefaults(t *testing.T) {
 	if got.JadxPath != "/config/jadx" {
 		t.Fatalf("JadxPath = %q, want /config/jadx", got.JadxPath)
 	}
-	if got.ProcyonPath != "/config/procyon" {
-		t.Fatalf("ProcyonPath = %q, want /config/procyon", got.ProcyonPath)
+	if got.ProcyonPath != procyonJar {
+		t.Fatalf("ProcyonPath = %q, want %q", got.ProcyonPath, procyonJar)
 	}
 	if got.RetryConcurrency != 7 {
 		t.Fatalf("RetryConcurrency = %d, want 7", got.RetryConcurrency)
@@ -284,7 +305,9 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	baseJar := filepath.Join(depsDir, "base.jar")
 	sharedJar := filepath.Join(depsDir, "shared.jar")
 	cliJar := filepath.Join(depsDir, "cli.jar")
-	for _, jar := range []string{baseJar, sharedJar, cliJar} {
+	configProcyonJar := filepath.Join(depsDir, "config-procyon.jar")
+	flagProcyonJar := filepath.Join(depsDir, "flag-procyon.jar")
+	for _, jar := range []string{baseJar, sharedJar, cliJar, configProcyonJar, flagProcyonJar} {
 		if err := os.WriteFile(jar, []byte("jar"), 0o644); err != nil {
 			t.Fatalf("WriteFile() error = %v", err)
 		}
@@ -299,7 +322,7 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	}, func() (ProjectConfig, error) {
 		return ProjectConfig{
 			JadxPath:                "/config/jadx",
-			ProcyonPath:             "/config/procyon",
+			ProcyonPath:             configProcyonJar,
 			DecompileClasspath:      []string{baseJar, sharedJar},
 			DefaultRetryConcurrency: 7,
 		}, nil
@@ -311,7 +334,7 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 		"--input", "sample.jar",
 		"--output", "out",
 		"--jadx-path", "/flag/jadx",
-		"--procyon-path", "/flag/procyon",
+		"--procyon-path", flagProcyonJar,
 		"--classpath", sharedJar,
 		"--classpath", cliJar,
 		"--retry-concurrency", "3",
@@ -323,8 +346,8 @@ func TestNewAppFlagsOverrideConfigFileDefaults(t *testing.T) {
 	if got.JadxPath != "/flag/jadx" {
 		t.Fatalf("JadxPath = %q, want /flag/jadx", got.JadxPath)
 	}
-	if got.ProcyonPath != "/flag/procyon" {
-		t.Fatalf("ProcyonPath = %q, want /flag/procyon", got.ProcyonPath)
+	if got.ProcyonPath != flagProcyonJar {
+		t.Fatalf("ProcyonPath = %q, want %q", got.ProcyonPath, flagProcyonJar)
 	}
 	if got.RetryConcurrency != 3 {
 		t.Fatalf("RetryConcurrency = %d, want 3", got.RetryConcurrency)
@@ -350,6 +373,10 @@ func TestNewAppExpandsClasspathDirectoryFlags(t *testing.T) {
 	if err := os.WriteFile(explicitJar, []byte("x"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
+	procyonJar := filepath.Join(t.TempDir(), "procyon.jar")
+	if err := os.WriteFile(procyonJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	var got Config
 	app := newAppWithDeps(func(_ context.Context, cfg Config) error {
@@ -366,6 +393,7 @@ func TestNewAppExpandsClasspathDirectoryFlags(t *testing.T) {
 		"decompile",
 		"--input", "sample.jar",
 		"--output", "out",
+		"--procyon-path", procyonJar,
 		"--classpath", depsDir,
 		"--classpath", explicitJar,
 	})
@@ -772,11 +800,15 @@ func TestNewAppUsesExplicitConfigFlagForDecompile(t *testing.T) {
 
 	dir := t.TempDir()
 	libJar := filepath.Join(dir, "lib.jar")
+	procyonJar := filepath.Join(dir, "procyon.jar")
 	if err := os.WriteFile(libJar, []byte("jar"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
+	if err := os.WriteFile(procyonJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 	configPath := filepath.Join(dir, "prod.yaml")
-	err := os.WriteFile(configPath, []byte(fmt.Sprintf("jadx_path: /explicit/jadx\nprocyon_path: /explicit/procyon\ndecompile_classpath:\n  - %s\n", libJar)), 0o644)
+	err := os.WriteFile(configPath, []byte(fmt.Sprintf("jadx_path: /explicit/jadx\nprocyon_path: %s\ndecompile_classpath:\n  - %s\n", procyonJar, libJar)), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -805,8 +837,8 @@ func TestNewAppUsesExplicitConfigFlagForDecompile(t *testing.T) {
 	if got.JadxPath != "/explicit/jadx" {
 		t.Fatalf("JadxPath = %q, want /explicit/jadx", got.JadxPath)
 	}
-	if got.ProcyonPath != "/explicit/procyon" {
-		t.Fatalf("ProcyonPath = %q, want /explicit/procyon", got.ProcyonPath)
+	if got.ProcyonPath != procyonJar {
+		t.Fatalf("ProcyonPath = %q, want %q", got.ProcyonPath, procyonJar)
 	}
 	if want := []string{libJar}; !slices.Equal(got.ExtraClasspath, want) {
 		t.Fatalf("ExtraClasspath = %v, want %v", got.ExtraClasspath, want)
@@ -818,8 +850,12 @@ func TestNewAppConfigFlagOverridesProjectConfigDiscovery(t *testing.T) {
 
 	// Create a config in a separate directory that should NOT be found by normal discovery.
 	explicitDir := t.TempDir()
+	procyonJar := filepath.Join(explicitDir, "procyon.jar")
+	if err := os.WriteFile(procyonJar, []byte("jar"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 	configPath := filepath.Join(explicitDir, "explicit.yaml")
-	err := os.WriteFile(configPath, []byte("jadx_path: /explicit/jadx\nprocyon_path: /explicit/procyon\n"), 0o644)
+	err := os.WriteFile(configPath, []byte(fmt.Sprintf("jadx_path: /explicit/jadx\nprocyon_path: %s\n", procyonJar)), 0o644)
 	if err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}

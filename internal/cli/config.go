@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	defaultJadxBinary    = "jadx"
-	defaultProcyonBinary = "procyon"
-	defaultJavacBinary   = "javac"
+	defaultJadxBinary  = "jadx"
+	defaultJavacBinary = "javac"
 )
 
 type Config struct {
@@ -130,22 +129,28 @@ func ValidateConfig(cfg Config, lookup LookupFunc) (Config, error) {
 		cfg.JadxPath = jadxTarget
 	}
 
-	vfTarget := cfg.ProcyonPath
-	if vfTarget == "" {
-		vfTarget = defaultProcyonBinary
+	if cfg.ProcyonPath == "" {
+		return Config{}, errors.New("procyon jar path is required; set --procyon-path or procyon_path in config.yaml")
+	}
+	if !isJarPath(cfg.ProcyonPath) {
+		return Config{}, fmt.Errorf("procyon jar path %q must have a .jar extension", cfg.ProcyonPath)
+	}
+	procyonInfo, err := os.Stat(cfg.ProcyonPath)
+	if err != nil {
+		return Config{}, fmt.Errorf("resolve procyon jar %q: %w", cfg.ProcyonPath, err)
+	}
+	if !procyonInfo.Mode().IsRegular() {
+		return Config{}, fmt.Errorf("procyon jar path %q must be a regular file", cfg.ProcyonPath)
+	}
+	procyonFile, err := os.Open(cfg.ProcyonPath)
+	if err != nil {
+		return Config{}, fmt.Errorf("open procyon jar %q: %w", cfg.ProcyonPath, err)
+	}
+	if err := procyonFile.Close(); err != nil {
+		return Config{}, fmt.Errorf("close procyon jar %q: %w", cfg.ProcyonPath, err)
 	}
 	if _, err := lookup("java"); err != nil {
 		return Config{}, fmt.Errorf("resolve java runtime: %w", err)
-	}
-	if isJarPath(vfTarget) {
-		if _, err := os.Stat(vfTarget); err != nil {
-			return Config{}, fmt.Errorf("resolve procyon jar: %w", err)
-		}
-	} else if _, err := lookup(vfTarget); err != nil {
-		return Config{}, fmt.Errorf("resolve procyon binary: %w", err)
-	}
-	if cfg.ProcyonPath == "" {
-		cfg.ProcyonPath = vfTarget
 	}
 
 	return cfg, nil

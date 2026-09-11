@@ -94,7 +94,7 @@ func newAppWithAllDeps(version string, run RunFunc, patchRun PatchRunFunc, sourc
 					},
 					&urfavecli.StringFlag{
 						Name:  "procyon-path",
-						Usage: "Path to the procyon jar file",
+						Usage: "Path to the readable Procyon JAR required for fallback",
 					},
 					&urfavecli.StringSliceFlag{
 						Name:  "classpath",

@@ -387,8 +387,12 @@ func TestEnginePassesDecompileClasspathToProcyonRetries(t *testing.T) {
 		},
 		ProcyonRunner: &scriptedRunner{
 			run: func(spec decompiler.CommandSpec) (decompiler.RunResult, error) {
-				if got, want := spec.Args[5], strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator)); got != want {
-					t.Fatalf("extraclasspath = %q, want %q", got, want)
+				want := "CLASSPATH=" + strings.Join([]string{jarPath, "/deps/base.jar", "/deps/cli.jar"}, string(os.PathListSeparator))
+				if !slices.Equal(spec.Env, []string{want}) {
+					t.Fatalf("Env = %v, want [%q]", spec.Env, want)
+				}
+				if got := spec.Args[len(spec.Args)-1]; !strings.HasSuffix(got, filepath.Join("classes", "com", "example", "Foo.class")) {
+					t.Fatalf("class input = %q, want extracted Foo.class", got)
 				}
 				outputDir := spec.Args[3]
 				writePipelineFile(t, outputDir, "com/example/Foo.java", "class Foo { int recovered = 1; }\n")

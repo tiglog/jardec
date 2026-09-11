@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -114,13 +113,15 @@ func RunProcyon(ctx context.Context, runner Runner, cfg ProcyonConfig) (RunResul
 
 func ProcyonCommand(cfg ProcyonConfig) CommandSpec {
 	args := []string{"-jar", cfg.JarPath, "-o", cfg.OutputDir}
+	env := make([]string, 0, 1)
 	if len(cfg.Classpath) > 0 {
-		args = append(args, "--classpath", strings.Join(cfg.Classpath, string(filepath.ListSeparator)))
+		env = append(env, "CLASSPATH="+strings.Join(cfg.Classpath, string(os.PathListSeparator)))
 	}
 	args = append(args, cfg.ClassFile)
 	return CommandSpec{
 		Path: "java",
 		Args: args,
+		Env:  env,
 	}
 }
 

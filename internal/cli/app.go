@@ -17,6 +17,8 @@ type SourcePatchRunFunc func(context.Context, SourcePatchConfig) error
 
 type LookupFunc func(string) (string, error)
 
+const DevelopmentVersion = "dev"
+
 func resolveProjectConfig(ctx *urfavecli.Context, defaultLoader func() (ProjectConfig, error)) (ProjectConfig, error) {
 	if configPath := ctx.String("config"); configPath != "" {
 		return LoadProjectConfigFromPath(configPath)
@@ -24,19 +26,22 @@ func resolveProjectConfig(ctx *urfavecli.Context, defaultLoader func() (ProjectC
 	return defaultLoader()
 }
 
-func NewApp(run RunFunc, patchRun PatchRunFunc, sourcePatchRun SourcePatchRunFunc, lookup LookupFunc) *urfavecli.App {
-	return newAppWithAllDeps(run, patchRun, sourcePatchRun, lookup, loadProjectConfigFromWorkingDir)
+func NewApp(version string, run RunFunc, patchRun PatchRunFunc, sourcePatchRun SourcePatchRunFunc, lookup LookupFunc) *urfavecli.App {
+	return newAppWithAllDeps(version, run, patchRun, sourcePatchRun, lookup, loadProjectConfigFromWorkingDir)
 }
 
 func newAppWithDeps(run RunFunc, patchRun PatchRunFunc, lookup LookupFunc, loadProjectConfig func() (ProjectConfig, error)) *urfavecli.App {
-	return newAppWithAllDeps(run, patchRun, nil, lookup, loadProjectConfig)
+	return newAppWithAllDeps(DevelopmentVersion, run, patchRun, nil, lookup, loadProjectConfig)
 }
 
 func newSourcePatchAppWithDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun SourcePatchRunFunc, lookup LookupFunc, loadProjectConfig func() (ProjectConfig, error)) *urfavecli.App {
-	return newAppWithAllDeps(run, patchRun, sourcePatchRun, lookup, loadProjectConfig)
+	return newAppWithAllDeps(DevelopmentVersion, run, patchRun, sourcePatchRun, lookup, loadProjectConfig)
 }
 
-func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun SourcePatchRunFunc, lookup LookupFunc, loadProjectConfig func() (ProjectConfig, error)) *urfavecli.App {
+func newAppWithAllDeps(version string, run RunFunc, patchRun PatchRunFunc, sourcePatchRun SourcePatchRunFunc, lookup LookupFunc, loadProjectConfig func() (ProjectConfig, error)) *urfavecli.App {
+	if version == "" {
+		version = DevelopmentVersion
+	}
 	if run == nil {
 		run = func(context.Context, Config) error { return nil }
 	}
@@ -54,7 +59,8 @@ func newAppWithAllDeps(run RunFunc, patchRun PatchRunFunc, sourcePatchRun Source
 	}
 
 	return &urfavecli.App{
-		Name: "jardec",
+		Name:    "jardec",
+		Version: version,
 		Flags: []urfavecli.Flag{
 			&urfavecli.StringFlag{
 				Name:  "config",

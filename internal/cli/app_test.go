@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,58 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestNewAppDisplaysVersionWithoutRunningCommand(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		args        []string
+		version     string
+		wantVersion string
+	}{
+		{
+			name:        "long flag uses development fallback",
+			args:        []string{"jardec", "--version"},
+			wantVersion: "dev",
+		},
+		{
+			name:        "short flag uses supplied version",
+			args:        []string{"jardec", "-v"},
+			version:     "v1.2.3",
+			wantVersion: "v1.2.3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			app := newAppWithDeps(func(context.Context, Config) error {
+				called = true
+				return nil
+			}, nil, func(name string) (string, error) {
+				return "/resolved/" + name, nil
+			}, func() (ProjectConfig, error) {
+				return ProjectConfig{}, nil
+			})
+			if tt.version != "" {
+				app.Version = tt.version
+			}
+
+			var output bytes.Buffer
+			app.Writer = &output
+			if err := app.RunContext(context.Background(), tt.args); err != nil {
+				t.Fatalf("RunContext() error = %v", err)
+			}
+			if called {
+				t.Fatal("decompile callback was called by version display")
+			}
+			if got := output.String(); !strings.Contains(got, tt.wantVersion) {
+				t.Fatalf("version output = %q, want it to contain %q", got, tt.wantVersion)
+			}
+		})
+	}
+}
 
 func TestNewAppParsesOptionsIntoConfig(t *testing.T) {
 	t.Parallel()

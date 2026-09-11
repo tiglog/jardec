@@ -35,3 +35,35 @@ func TestMakeInstallInvokesGoInstallForCLI(t *testing.T) {
 		t.Fatalf("go arguments = %q, want %q", got, want)
 	}
 }
+
+func TestMakeBuildInjectsRepositoryVersion(t *testing.T) {
+	tempDir := t.TempDir()
+	argsPath := filepath.Join(tempDir, "go-args")
+	goPath := filepath.Join(tempDir, "go")
+	versionBytes, err := os.ReadFile("VERSION")
+	if err != nil {
+		t.Fatalf("read repository version: %v", err)
+	}
+	version := strings.TrimSpace(string(versionBytes))
+
+	if err := os.WriteFile(goPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGS_FILE\"\n"), 0o755); err != nil {
+		t.Fatalf("write fake go command: %v", err)
+	}
+
+	command := exec.Command("make", "build")
+	command.Env = append(os.Environ(),
+		"ARGS_FILE="+argsPath,
+		"PATH="+tempDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("make build: %v\n%s", err, output)
+	}
+
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatalf("read captured go arguments: %v", err)
+	}
+	if got, want := strings.TrimSpace(string(args)), "build\n-ldflags\n-X main.version="+version+"\n-o\nbin/jardec\n./cmd/jardec"; got != want {
+		t.Fatalf("go arguments = %q, want %q", got, want)
+	}
+}

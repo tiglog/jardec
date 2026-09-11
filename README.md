@@ -14,6 +14,20 @@ go run ./cmd/jardec decompile \
 
 反编译结果写入 `out/`，包含 `sources/`（Java 源码）、`resources/`（资源文件）和 `report.json` / `report.txt`。
 
+## 版本信息
+
+通过根命令查看当前二进制的版本：
+
+```bash
+jardec --version
+```
+
+版本由仓库根目录的 [`VERSION`](./VERSION) 文件管理，发布时修改并提交该文件。`make build` 会读取它并注入二进制：
+
+```bash
+make build
+```
+
 如果项目有外部依赖 JAR，通过 `--classpath` 追加（Procyon 回退时需要它们来还原类型引用）：
 
 ```bash

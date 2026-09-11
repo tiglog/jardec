@@ -1,4 +1,5 @@
 APP := jardec
+override VERSION := $(shell tr -d '\r\n' < VERSION)
 
 .PHONY: test build run clean install
 
@@ -6,7 +7,7 @@ test:
 	go test ./...
 
 build:
-	go build -o bin/$(APP) ./cmd/jardec
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/$(APP) ./cmd/jardec
 
 install:
 	go install ./cmd/jardec

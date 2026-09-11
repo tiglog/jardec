@@ -13,11 +13,13 @@ import (
 	"jardec/internal/sourcepatch"
 )
 
+var version = appcli.DevelopmentVersion
+
 func main() {
 	engine := pipeline.Engine{}
 	patchEngine := patch.Engine{}
 	sourcePatchEngine := sourcepatch.Engine{}
-	app := appcli.NewApp(func(ctx context.Context, cfg appcli.Config) error {
+	app := appcli.NewApp(version, func(ctx context.Context, cfg appcli.Config) error {
 		rep, err := engine.Run(ctx, pipeline.Config{
 			InputPath:        cfg.InputPath,
 			OutputDir:        cfg.OutputDir,

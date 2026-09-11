@@ -12,6 +12,11 @@ func TestMakeInstallInvokesGoInstallForCLI(t *testing.T) {
 	tempDir := t.TempDir()
 	argsPath := filepath.Join(tempDir, "go-args")
 	goPath := filepath.Join(tempDir, "go")
+	versionBytes, err := os.ReadFile("VERSION")
+	if err != nil {
+		t.Fatalf("read repository version: %v", err)
+	}
+	version := strings.TrimSpace(string(versionBytes))
 
 	if err := os.WriteFile(goPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGS_FILE\"\n"), 0o755); err != nil {
 		t.Fatalf("write fake go command: %v", err)
@@ -31,7 +36,7 @@ func TestMakeInstallInvokesGoInstallForCLI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read captured go arguments: %v", err)
 	}
-	if got, want := strings.TrimSpace(string(args)), "install\n./cmd/jardec"; got != want {
+	if got, want := strings.TrimSpace(string(args)), "install\n-ldflags\n-X main.version="+version+"\n./cmd/jardec"; got != want {
 		t.Fatalf("go arguments = %q, want %q", got, want)
 	}
 }

@@ -10,7 +10,7 @@ build:
 	go build -ldflags "-X main.version=$(VERSION)" -o bin/$(APP) ./cmd/jardec
 
 install:
-	go install ./cmd/jardec
+	go install -ldflags "-X main.version=$(VERSION)" ./cmd/jardec
 
 run:
 	go run ./cmd/jardec --help
